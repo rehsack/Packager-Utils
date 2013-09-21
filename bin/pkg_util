@@ -1,0 +1,5 @@
+#!perl
+
+use Packager::Utils;
+
+Packager::Utils->new_with_options->execute();
