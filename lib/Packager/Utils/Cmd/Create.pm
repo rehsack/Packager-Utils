@@ -1,4 +1,4 @@
-package Packager::Utils::Cmd::Find::Cmd::Package;
+package Packager::Utils::Cmd::Create;
 
 use 5.008003;
 use strict;
@@ -15,7 +15,7 @@ sub execute
     my ( $self, $args_ref, $chain_ref ) = @_;
     my @chain = @{$chain_ref};
 
-    exit 0;
+    die "Need to specify a sub-command!\n";
 }
 
 1;

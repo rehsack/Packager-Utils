@@ -2,4 +2,4 @@
 
 use Packager::Utils;
 
-Packager::Utils->new_with_options->execute();
+Packager::Utils->new_with_cmd->execute();

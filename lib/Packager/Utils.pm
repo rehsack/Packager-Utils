@@ -11,9 +11,11 @@ use MooX::Cmd;
 
 sub execute
 {
-    my $self = shift;
-    my ( $args, $chain ) = @_;
-    die "Need to specify a sub-command!\n";
+    my ( $self, $args_ref, $chain_ref ) = @_;
+    my @extra_argv = @{$args_ref};
+    my @chain = @{$chain_ref};
+
+    die "Need to specify a command!\n";
 }
 
 =head1 NAME
