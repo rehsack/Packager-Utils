@@ -1,0 +1,36 @@
+[% MACRO BUILD_COMMENT(p)
+   BLOCK;
+       chk_state = p.CHECK_STATE;
+       IF p.CHECK_COMMENT.defined;
+           "<td colspan=4>${p.CHECK_COMMENT}</td>";
+       ELSE;
+           cmt = [];
+	   cmt.push("${p.PKG_NAME}-${p.PKG_VERSION}");
+	   cmt.push("${p.PKG_MAINTAINER}");
+	   cmt.push(STATE_REMARKS.$chk_state);
+	   IF STATE_CMPOPS.$chk_state.defined;
+	       cmt.push("${p.DIST_VERSION} ${STATE_CMPOPS.$chk_state} ${p.CPAN_VERSION}");
+	   ELSE;
+	       cmt.push("");
+	   END;
+	   %]<td>[% cmt.join("</td><td>") %]</td>[%;
+       END;
+   END; %]
+<html>
+<head>
+  <title>Outdated Perl5 modules in pkgsrc</title>
+</head>
+
+<body>
+  <h1>Outdated Perl5 modules in pkgsrc</h1>
+  <table>
+    <tr><th>Package location</th><th>Package</th><th>Maintainer</th><th>Remark</th><th>Information</th></tr>
+[% FOREACH line IN data; %]
+    <tr[% IF loop.count % 2 == 0 %] bgcolor="silver"[% END %]><td>[% IF line.PKG_HOMEPAGE.defined; %]<a href="[% line.PKG_HOMEPAGE %]">[% END; line.PKG_LOCATION; IF line.PKG_HOMEPAGE.defined; %]</a>[% END; %]</td>[% BUILD_COMMENT(line); %]</tr>
+[% END -%]
+  </table>
+  <p>
+    [% COUNT.ENTIRE %] Perl5 distributions packaged, [% COUNT.UP2DATE %] up to date, [% COUNT.NEED_UPDATE %] needs update, [% COUNT.NEED_CHECK %] need further investigation
+  </p>
+  <p>Powered by <a href="http://search.cpan.org/dist/Packging-Tools/">Packaging::Tools</a></p>
+</body>

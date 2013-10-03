@@ -13,7 +13,6 @@ use MooX::Options;
 sub execute
 {
     my ( $self, $args_ref, $chain_ref ) = @_;
-    my @chain = @{$chain_ref};
 
     exit 0;
 }

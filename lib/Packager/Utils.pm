@@ -13,14 +13,14 @@ sub execute
 {
     my ( $self, $args_ref, $chain_ref ) = @_;
     my @extra_argv = @{$args_ref};
-    my @chain = @{$chain_ref};
+    my @chain      = @{$chain_ref};
 
     die "Need to specify a command!\n";
 }
 
 =head1 NAME
 
-Packager::Utils - The great new Packager::Utils!
+Packager::Utils - Utils to support packagers daily business
 
 =head1 SYNOPSIS
 

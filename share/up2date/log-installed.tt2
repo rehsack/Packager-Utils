@@ -1,0 +1,27 @@
+[% MACRO BUILD_COMMENT(p)
+   BLOCK;
+       chk_state = p.CHECK_STATE;
+       IF p.CHECK_COMMENT.defined;
+           p.CHECK_COMMENT;
+       ELSE;
+           cmt = [];
+	   cmt.push("${p.PKG_NAME}-${p.PKG_VERSION}");
+	   cmt.push("(${p.PKG_MAINTAINER})");
+	   cmt.push(STATE_REMARKS.$chk_state);
+	   IF STATE_CMPOPS.$chk_state.defined;
+	       cmt.push(p.DIST_VERSION);
+	       cmt.push(STATE_CMPOPS.$chk_state);
+	       cmt.push(p.CPAN_VERSION);
+	   END;
+	   IF p.PKG_INSTALLED.defined && p.PKG_INSTALLED;
+	       cmt.push("(I)");
+	   END;
+	   cmt.join(" ");
+       END;
+   END;
+   FOREACH line IN data;
+line.PKG_LOCATION %]: [% BUILD_COMMENT(line); %]
+[% END %]
+[% COUNT.ENTIRE %] Perl5 distributions packaged, [% COUNT.UP2DATE %] up to date, [% COUNT.NEED_UPDATE %] needs update, [% COUNT.NEED_CHECK %] need further investigation
+
+Powered by Packaging::Tools
