@@ -1,9 +1,9 @@
 [% MACRO BUILD_COMMENT(p)
    BLOCK;
-       chk_state = p.UPSTREAM_STATE;
        IF p.UPSTREAM_COMMENT.defined;
            "<td colspan=5>${p.UPSTREAM_COMMENT}</td>";
        ELSE;
+	   chk_state = p.UPSTREAM_STATE;
            cmt = [];
 	   cmt.push("${p.PKG_NAME}-${p.PKG_VERSION}");
 	   cmt.push("${p.PKG_MAINTAINER}");
@@ -31,7 +31,7 @@
   <table>
     <tr><th>Package location</th><th>Package</th><th>Maintainer</th><th>Remark</th><th>Information</th><th>Installed</th></tr>
 [% FOREACH line IN data; %]
-    <tr[% IF loop.count % 2 == 0 %] bgcolor="silver"[% END %]><td>[% IF line.PKG_HOMEPAGE.defined; %]<a href="[% line.PKG_HOMEPAGE %]">[% END; line.PKG_LOCATION; IF line.PKG_HOMEPAGE.defined; %]</a>[% END; %]</td>[% BUILD_COMMENT(line); %]</tr>
+    <tr[% IF line.UPSTREAM_COMMENT.defined %] bgcolor="red"[% ELSIF loop.count % 2 == 0 %] bgcolor="silver"[% END %]><td>[% IF line.PKG_HOMEPAGE.defined; %]<a href="[% line.PKG_HOMEPAGE %]">[% END; line.PKG_LOCATION; IF line.PKG_HOMEPAGE.defined; %]</a>[% END; %]</td>[% BUILD_COMMENT(line); %]</tr>
 [% END -%]
   </table>
   <p>
