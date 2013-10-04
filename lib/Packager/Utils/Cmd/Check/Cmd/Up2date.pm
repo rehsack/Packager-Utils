@@ -8,15 +8,15 @@ our $VERSION = "0.001";
 
 use Moo;
 use MooX::Cmd;
-use MooX::Options;
+use MooX::Options with_config_from_file => 1;
 
 with "Packager::Utils::Role::Upstream", "Packager::Utils::Role::Packages",
-  "Packager::Utils::Role::Template";
+  "Packager::Utils::Role::Template", "Packager::Utils::Role::Cache";
 
 my @pkg_detail_keys = (
                         qw(DIST_NAME DIST_VERSION DIST_FILE PKG_NAME PKG_VERSION),
                         qw(PKG_MAINTAINER PKG_HOMEPAGE PKG_INSTALLED PKG_LOCATION),
-                        qw(UPSTREAM_VERSION UPSTREAM_NAME CHECK_STATE CHECK_COMMENT)
+                        qw(UPSTREAM_VERSION UPSTREAM_NAME UPSTREAM_STATE UPSTREAM_COMMENT)
                       );
 
 sub execute
@@ -25,7 +25,7 @@ sub execute
 
     $self->init_upstream();
 
-    my $packages = $self->packaged_modules();
+    my $packages = $self->packages();
     foreach my $pkg_system ( keys %$packages )
     {
         my ( $up_to_date, $need_update, $need_check ) = (0) x 3;
@@ -43,7 +43,7 @@ sub execute
                   @{ $packages->{$pkg_system}->{$pkg} }{@pkg_detail_keys};
                 push( @pkgs_in_state, \%pkg_details );
                 $counter =
-                  $pkg_details{CHECK_STATE} == $self->STATE_NEWER_UPSTREAM
+                  $pkg_details{UPSTREAM_STATE} == $self->STATE_NEWER_UPSTREAM
                   ? \$need_update
                   : \$need_check;
             }
@@ -65,6 +65,7 @@ sub execute
 
         $self->process_templates( $pkg_system, \%vars );
     }
+    $self->cache_packages;
 
     exit 0;
 }

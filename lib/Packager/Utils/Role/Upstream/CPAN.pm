@@ -210,7 +210,7 @@ around "upstream_up2date_state" => sub {
 
     my $pkg_details = shift;
 
-    defined( $pkg_details->{CHECK_STATE} ) and return $pkg_details->{CHECK_STATE};
+    defined( $pkg_details->{UPSTREAM_STATE} ) and return $pkg_details->{UPSTREAM_STATE};
 
     # @result{@local_vars} = @{ $self->{pkg_details}->{$pkg_ident} }{@local_vars};
 
@@ -225,56 +225,52 @@ around "upstream_up2date_state" => sub {
 
     unless ( defined($dist_name) and defined($dist_version) )
     {
-        $pkg_details->{CHECK_COMMENT} = 'Error getting distribution data';
-        return $pkg_details->{CHECK_STATE} = $self->STATE_ERROR;
+        $pkg_details->{UPSTREAM_COMMENT} = 'Error getting distribution data';
+        return $pkg_details->{UPSTREAM_STATE} = $self->STATE_ERROR;
     }
 
     $dist_name eq "perl"
       and $pkg_details->{PKG_NAME} ne "perl"
-      and return $pkg_details->{CHECK_STATE} = $self->STATE_OK;
+      and return $pkg_details->{UPSTREAM_STATE} = $self->STATE_OK;
 
+    my %core_newer;
     foreach my $distmod ( @{ $self->cpan_distributions->{$dist_name} } )
     {
         defined( $Module::CoreList::version{$]}->{$distmod} ) or next;
         my $mod = $CPAN::META->instance( "CPAN::Module", $distmod );
         if ( _is_gt( $Module::CoreList::version{$]}->{$distmod}, $mod->cpan_version() ) )
         {
-            $pkg_details->{CORE_NEWER}->{$distmod} =
+            $core_newer{$distmod} =
               [ $Module::CoreList::version{$]}->{$distmod}, $mod->cpan_version() ];
         }
     }
 
-    if ( defined( $pkg_details->{CORE_NEWER} ) )
+    if (%core_newer)
     {
-        $pkg_details->{CHECK_COMMENT} =
-          "$dist_name-$dist_version has newer modules in core: " . join(
-            ", ",
-            map {
-                    $_ . " "
-                  . $pkg_details->{CORE_NEWER}->{$_}->[0] . " > "
-                  . $pkg_details->{CORE_NEWER}->{$_}->[1]
-              } keys %{ $pkg_details->{CORE_NEWER} }
-          );
-        return $pkg_details->{CHECK_STATE} = $self->STATE_NEWER_IN_CORE;
+        my $pfx = "$dist_name-$dist_version has newer modules in core:";
+        my $cmp =
+          join( ", ", map { "$_  " . join( " > ", @{ $core_newer{$_} } ) } keys %core_newer );
+        $pkg_details->{UPSTREAM_COMMENT} = "$pfx $cmp";
+        return $pkg_details->{UPSTREAM_STATE} = $self->STATE_NEWER_IN_CORE;
     }
 
     if ( !defined($cpan_version) )
     {
         defined($master_sites)
           and $master_sites !~ m/cpan/i
-          and return $pkg_details->{CHECK_STATE} = $self->STATE_OK;
-        return $pkg_details->{CHECK_STATE} = $self->STATE_REMOVED_FROM_INDEX;
+          and return $pkg_details->{UPSTREAM_STATE} = $self->STATE_OK;
+        return $pkg_details->{UPSTREAM_STATE} = $self->STATE_REMOVED_FROM_INDEX;
     }
     elsif ( _is_gt( $cpan_version, $dist_version ) )
     {
-        return $pkg_details->{CHECK_STATE} = $self->STATE_NEWER_UPSTREAM;
+        return $pkg_details->{UPSTREAM_STATE} = $self->STATE_NEWER_UPSTREAM;
     }
     elsif ( _is_ne( $cpan_version, $dist_version ) )
     {
-        return $pkg_details->{CHECK_STATE} = $self->STATE_OUT_OF_SYNC;
+        return $pkg_details->{UPSTREAM_STATE} = $self->STATE_OUT_OF_SYNC;
     }
 
-    return $pkg_details->{CHECK_STATE} = $self->STATE_OK;
+    return $pkg_details->{UPSTREAM_STATE} = $self->STATE_OK;
 };
 
 1;

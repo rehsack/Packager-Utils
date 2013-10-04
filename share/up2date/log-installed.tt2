@@ -1,8 +1,8 @@
 [% MACRO BUILD_COMMENT(p)
    BLOCK;
-       chk_state = p.CHECK_STATE;
-       IF p.CHECK_COMMENT.defined;
-           p.CHECK_COMMENT;
+       chk_state = p.UPSTREAM_STATE;
+       IF p.UPSTREAM_COMMENT.defined;
+           p.UPSTREAM_COMMENT;
        ELSE;
            cmt = [];
 	   cmt.push("${p.PKG_NAME}-${p.PKG_VERSION}");
