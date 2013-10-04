@@ -17,7 +17,7 @@ option 'output' => (
                      doc       => "Desired output templates",
                      autosplit => 1,
                      short     => "t",
-		     required  => 1,
+                     required  => 1,
                    );
 
 option 'target' => (
@@ -75,10 +75,8 @@ sub process_templates
 {
     my ( $self, $pkg_system, $vars ) = @_;
 
-    my $template = Template->new(
-                                  INCLUDE_PATH => join( ":", @{$self->template_directories} ),
-                                  ABSOLUTE => 1,
-                                );
+    my $template = Template->new( INCLUDE_PATH => join( ":", @{ $self->template_directories } ),
+                                  ABSOLUTE     => 1, );
 
     foreach my $tgt ( @{ $self->output } )
     {
