@@ -8,9 +8,11 @@ has "installed_packages" => ( is => "lazy" );
 
 sub _build_installed_packages { {} }
 
-has "packaged_modules" => ( is => "lazy" );
+has "packages" => ( is => "lazy" );
 
-sub _build_packaged_modules { {} }
+requires "cached_packages";
+
+sub _build_packages { $_[0]->cached_packages }
 
 use MooX::Roles::Pluggable search_path => __PACKAGE__;
 

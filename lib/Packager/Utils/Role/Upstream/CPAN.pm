@@ -210,11 +210,9 @@ around "upstream_up2date_state" => sub {
 
     my $pkg_details = shift;
 
-    defined( $pkg_details->{UPSTREAM_STATE} ) and return $pkg_details->{UPSTREAM_STATE};
-
     # @result{@local_vars} = @{ $self->{pkg_details}->{$pkg_ident} }{@local_vars};
 
-    my @pkg_det_keys = (qw(DIST_NAME DIST_VERSION PKG_VERSION MASTER_SITES));
+    my @pkg_det_keys = (qw(DIST_NAME DIST_VERSION PKG_VERSION PKG_MASTER_SITES));
     my ( $dist_name, $dist_version, $pkg_version, $master_sites ) = @{$pkg_details}{@pkg_det_keys};
 
     defined $pkg_details->{UPSTREAM_VERSION}
@@ -258,7 +256,7 @@ around "upstream_up2date_state" => sub {
     {
         defined($master_sites)
           and $master_sites !~ m/cpan/i
-          and return $pkg_details->{UPSTREAM_STATE} = $self->STATE_OK;
+          and return;
         return $pkg_details->{UPSTREAM_STATE} = $self->STATE_REMOVED_FROM_INDEX;
     }
     elsif ( _is_gt( $cpan_version, $dist_version ) )

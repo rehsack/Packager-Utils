@@ -14,7 +14,6 @@ use IO::CaptureOutput qw(capture_exec);
 use List::MoreUtils qw(zip);
 
 # make it optional - with cache only ...
-use DateTime;
 use File::Find::Rule::Age;
 
 our $VERSION = '0.001';
@@ -41,10 +40,10 @@ sub _build_pkgsrc_base_dir
 }
 
 option 'pkgsrc_prefix' => (
-                              is     => "ro", # XXX guess that using Alien::Packags
-                              format => "s",
-                              doc    => "Specify prefix directory of pkgsrc binaries",
-                            );
+    is     => "ro",                                            # XXX guess that using Alien::Packags
+    format => "s",
+    doc    => "Specify prefix directory of pkgsrc binaries",
+                          );
 
 has pkg_info_cmd => ( is => "lazy" );
 has bmake_cmd    => ( is => "lazy" );
@@ -79,21 +78,24 @@ around "_build_installed_packages" => sub {
     return $installed;
 };
 
-around "_build_packaged_modules" => sub {
+around "_build_packages" => sub {
     my $next     = shift;
     my $self     = shift;
     my $packaged = $self->$next(@_);
 
     my $pkgsrc_base = $self->pkgsrc_base_dir();
     -d $pkgsrc_base or return $packaged;
-    my %age_args = (mindepth => 2, maxdepth => 2);
+    my %age_args = (
+                     mindepth => 2,
+                     maxdepth => 2
+                   );
 
-    #    if ($last_state)
-    #    {
-    #        my $now      = time();
-    #        my $duration = $now - $last_state;
-    #        %age_args = ( age => [ newer => "${duration}s" ] );
-    #    }
+    if ( $self->cache_timestamp )
+    {
+        my $now      = time();
+        my $duration = $now - $self->cache_timestamp;
+        $age_args{age} = [ newer => "${duration}s" ];
+    }
 
     my @pkg_dirs = find(
                          directory => name => "p5-*",
@@ -101,7 +103,11 @@ around "_build_packaged_modules" => sub {
                          in => $pkgsrc_base
                        );
 
-    $packaged->{pkgsrc} = { map { $_ => $self->_fetch_full_pkg_details($_) } @pkg_dirs };
+    foreach my $pkg_dir (@pkg_dirs)
+    {
+	my $pkg_det = $self->_fetch_full_pkg_details($_);
+	$packaged->{pkgsrc}->{$pkg_det->{PKG_LOCATION}} = $pkg_det;
+    }
 
     return $packaged;
 };
@@ -162,7 +168,7 @@ sub _fetch_full_pkg_details
         $pkg_details{PKG_VERSION}    = $pkg_vars{PKGVERSION};
         $pkg_details{PKG_MAINTAINER} = $pkg_vars{MAINTAINER};
         $pkg_details{PKG_INSTALLED} =
-          defined( $self->installed_packages->{ $pkg_details{PKG_NAME} } );
+          defined( $self->installed_packages->{pkgsrc}->{ $pkg_details{PKG_NAME} } );
         ( $pkg_details{PKG_LOCATION} = $pkg_loc ) =~ s|$pkgsrcdir/||;
         $pkg_details{PKG_HOMEPAGE}     = $pkg_vars{HOMEPAGE};
         $pkg_details{PKG_LICENSE}      = $pkg_vars{LICENSE};

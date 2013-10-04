@@ -82,7 +82,7 @@ sub process_templates
     {
         defined $self->templates->{$tgt} or next;    # XXX die ?
         my $tpl = $self->templates->{$tgt};
-        my $tgtfn = File::Spec->catfile( $self->target, "up2date." . $tpl->{ext} );
+        my $tgtfn = File::Spec->catfile( $self->target, $pkg_system . "-up2date." . $tpl->{ext} );
 
         $template->process( $tpl->{fqpn}, $vars, $tgtfn )
           or die $template->error();

@@ -45,6 +45,7 @@ has state_cmpops => ( is => "lazy" );
 sub _build_state_cmpops
 {
     my @state_cmpops = ( "==", "<", "!=" );
+    \@state_cmpops;
 }
 
 sub init_upstream { 1 }
