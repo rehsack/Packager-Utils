@@ -215,9 +215,18 @@ around "upstream_up2date_state" => sub {
     my @pkg_det_keys = (qw(DIST_NAME DIST_VERSION PKG_VERSION PKG_MASTER_SITES));
     my ( $dist_name, $dist_version, $pkg_version, $master_sites ) = @{$pkg_details}{@pkg_det_keys};
 
+    $self->cache_timestamp
+      and $CPAN::Index::LAST_TIME > $self->cache_timestamp
+      and
+      delete @{$pkg_details}{qw(UPSTREAM_VERSION UPSTREAM_NAME UPSTREAM_COMMENT UPSTREAM_STATE)};
+
     defined $pkg_details->{UPSTREAM_VERSION}
       or $pkg_details->{UPSTREAM_VERSION} = $self->cpan_versions->{$dist_name};
     defined $pkg_details->{UPSTREAM_NAME} or $pkg_details->{UPSTREAM_NAME} = $dist_name;
+
+    $self->has_cache_modified
+      and $self->cache_modified < $CPAN::Index::LAST_TIME
+      and $self->cache_modified($CPAN::Index::LAST_TIME);
 
     my $cpan_version = $pkg_details->{UPSTREAM_VERSION};
 
