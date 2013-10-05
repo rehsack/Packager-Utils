@@ -112,11 +112,16 @@ sub _build_cache_timestamp
     return;
 }
 
+has cache_modified => ( is => "rw", predicate => 1 );
+
 sub cache_packages
 {
     my $self     = shift;
     my $schema   = $self->schema;
     my $packages = $self->packages;
+
+    $self->has_cache_modified or return;
+    $self->cache_modified > $self->cache_timestamp or return;
 
     foreach my $pkg_system ( keys %$packages )
     {
@@ -162,7 +167,7 @@ sub cache_packages
     $schema->resultset('PkgUtilInfo')->update_or_create(
                                                        {
                                                          name  => "cache_timestamp",
-                                                         value => "" . time
+                                                         value => "" . $self->cache_modified
                                                        }
                                                      );
 

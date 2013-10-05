@@ -103,6 +103,9 @@ around "_build_packages" => sub {
                          in => $pkgsrc_base
                        );
 
+    @pkg_dirs or return $packaged;
+    $self->cache_modified( time );
+
     foreach my $pkg_dir (@pkg_dirs)
     {
 	my $pkg_det = $self->_fetch_full_pkg_details($_);
