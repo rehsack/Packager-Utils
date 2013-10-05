@@ -104,12 +104,12 @@ around "_build_packages" => sub {
                        );
 
     @pkg_dirs or return $packaged;
-    $self->cache_modified( time );
+    $self->cache_modified(time);
 
     foreach my $pkg_dir (@pkg_dirs)
     {
-	my $pkg_det = $self->_fetch_full_pkg_details($_);
-	$packaged->{pkgsrc}->{$pkg_det->{PKG_LOCATION}} = $pkg_det;
+        my $pkg_det = $self->_fetch_full_pkg_details($_);
+        $packaged->{pkgsrc}->{ $pkg_det->{PKG_LOCATION} } = $pkg_det;
     }
 
     return $packaged;

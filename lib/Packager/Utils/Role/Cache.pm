@@ -112,7 +112,10 @@ sub _build_cache_timestamp
     return;
 }
 
-has cache_modified => ( is => "rw", predicate => 1 );
+has cache_modified => (
+                        is        => "rw",
+                        predicate => 1
+                      );
 
 sub cache_packages
 {
@@ -165,11 +168,11 @@ sub cache_packages
         }
     }
     $schema->resultset('PkgUtilInfo')->update_or_create(
-                                                       {
-                                                         name  => "cache_timestamp",
-                                                         value => "" . $self->cache_modified
-                                                       }
-                                                     );
+                                                         {
+                                                           name  => "cache_timestamp",
+                                                           value => "" . $self->cache_modified
+                                                         }
+                                                       );
 
     return;
 }
