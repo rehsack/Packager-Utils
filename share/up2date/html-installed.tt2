@@ -9,7 +9,7 @@
 	   cmt.push("${p.PKG_MAINTAINER}");
 	   cmt.push(STATE_REMARKS.$chk_state);
 	   IF STATE_CMPOPS.$chk_state.defined;
-	       cmt.push("${p.DIST_VERSION} ${STATE_CMPOPS.$chk_state} ${p.CPAN_VERSION}");
+	       cmt.push("${p.DIST_VERSION} ${STATE_CMPOPS.$chk_state} ${p.UPSTREAM_VERSION}");
 	   ELSE;
 	       cmt.push("");
 	   END;

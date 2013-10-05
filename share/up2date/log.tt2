@@ -11,7 +11,7 @@
 	   IF STATE_CMPOPS.$chk_state.defined;
 	       cmt.push(p.DIST_VERSION);
 	       cmt.push(STATE_CMPOPS.$chk_state);
-	       cmt.push(p.CPAN_VERSION);
+	       cmt.push(p.UPSTREAM_VERSION);
 	   END;
 	   cmt.join(" ");
        END;
