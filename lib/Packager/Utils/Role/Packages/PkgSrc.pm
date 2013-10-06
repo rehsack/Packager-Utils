@@ -71,7 +71,7 @@ around "_build_installed_packages" => sub {
     $success or croak( "Error running " . $self->pkg_info_cmd . ": $stderr" );
     chomp $stdout;
     my @packages = split( "\n", $stdout );
-    if($self->have_packages_pattern)
+    if($self->has_packages_pattern)
     {
 	# XXX speed?
 	@packages = grep { match_glob( $self->packages_pattern, $_ ) } @packages;
@@ -104,7 +104,7 @@ around "_build_packages" => sub {
         $find_args{age} = [ newer => "${duration}s" ];
     }
 
-    $self->have_packages_pattern and $find_args{name} = $self->packages_pattern;
+    $self->has_packages_pattern and $find_args{name} = $self->packages_pattern;
 
     my @pkg_dirs = find(
                          directory => %find_args,
