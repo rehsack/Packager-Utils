@@ -175,6 +175,35 @@ sub _build_cpan_distributions
     return \%modsbydist;
 }
 
+around get_distribution_for_module => sub {
+    my $next = shift;
+    my $self = shift;
+
+    my $other_found = $self->$next(@_);
+    $other_found and return $other_found;
+
+    my $module = shift;
+    my @found;
+
+    if ( $CPAN::META->exists( "CPAN::Module", $module ) )
+    {
+        my $pkgs = $self->packages;
+
+        my $cpan_mod = $CPAN::META->instance( "CPAN::Module", $module );
+        my $cpan_dist = CPAN::DistnameInfo->new( $cpan_mod->cpan_file() )->dist();
+
+        foreach my $pkg_type ( keys %{$pkgs} )
+        {
+            push @found, grep { $_->{DIST_NAME} eq $cpan_dist } values %{ $pkgs->{$pkg_type} };
+	    defined( $Module::CoreList::version{$]}->{$module} ) and push @found, grep { $_->{PKG_NAME} eq "perl" } values %{ $pkgs->{$pkg_type} };
+        }
+    }
+
+    @found and return { $module => \@found };
+
+    return;
+};
+
 sub _is_gt
 {
     my $gt;

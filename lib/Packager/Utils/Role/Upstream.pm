@@ -48,6 +48,8 @@ sub _build_state_cmpops
     \@state_cmpops;
 }
 
+sub get_distribution_for_module { return; }
+
 sub init_upstream { 1 }
 
 sub upstream_up2date_state { return; }
