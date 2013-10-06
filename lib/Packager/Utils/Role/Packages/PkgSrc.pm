@@ -12,6 +12,7 @@ use File::Find::Rule qw(find);
 use File::pushd;
 use IO::CaptureOutput qw(capture_exec);
 use List::MoreUtils qw(zip);
+use Text::Glob qw(match_glob);
 
 # make it optional - with cache only ...
 use File::Find::Rule::Age;
@@ -69,9 +70,15 @@ around "_build_installed_packages" => sub {
     my ( $stdout, $stderr, $success, $exit_code ) = capture_exec( $self->pkg_info_cmd );
     $success or croak( "Error running " . $self->pkg_info_cmd . ": $stderr" );
     chomp $stdout;
+    my @packages = split( "\n", $stdout );
+    if($self->have_packages_pattern)
+    {
+	# XXX speed?
+	@packages = grep { match_glob( $self->packages_pattern, $_ ) } @packages;
+    }
     my %havepkgs =
       map { $_ =~ m/^(.*)-(v?[0-9].*?)$/ ? ( $1 => $2 ) : ( $_ => 0E0 ) }
-      map { ( split( m/\s+/, $_ ) )[0] } grep { 0 == index( $_, 'p5-' ) } split( "\n", $stdout );
+      map { ( split( m/\s+/, $_ ) )[0] } @packages;
 
     $installed->{pkgsrc} = \%havepkgs;
 
@@ -85,7 +92,7 @@ around "_build_packages" => sub {
 
     my $pkgsrc_base = $self->pkgsrc_base_dir();
     -d $pkgsrc_base or return $packaged;
-    my %age_args = (
+    my %find_args = (
                      mindepth => 2,
                      maxdepth => 2
                    );
@@ -94,12 +101,13 @@ around "_build_packages" => sub {
     {
         my $now      = time();
         my $duration = $now - $self->cache_timestamp;
-        $age_args{age} = [ newer => "${duration}s" ];
+        $find_args{age} = [ newer => "${duration}s" ];
     }
 
+    $self->have_packages_pattern and $find_args{name} = $self->packages_pattern;
+
     my @pkg_dirs = find(
-                         directory => name => "p5-*",
-                         %age_args,
+                         directory => %find_args,
                          in => $pkgsrc_base
                        );
 
@@ -108,7 +116,10 @@ around "_build_packages" => sub {
 
     foreach my $pkg_dir (@pkg_dirs)
     {
-        my $pkg_det = $self->_fetch_full_pkg_details($_);
+	# XXX File::Find::Rule extension ...
+	-f File::Spec->catfile($pkg_dir, "Makefile") or next;
+        my $pkg_det = $self->_fetch_full_pkg_details($pkg_dir);
+	$pkg_det or next;
         $packaged->{pkgsrc}->{ $pkg_det->{PKG_LOCATION} } = $pkg_det;
     }
 
@@ -177,7 +188,7 @@ sub _fetch_full_pkg_details
         $pkg_details{PKG_LICENSE}      = $pkg_vars{LICENSE};
         $pkg_details{PKG_MASTER_SITES} = $pkg_vars{MASTER_SITES};
     };
-    $@ and print("$pkg_loc -- $@\n");
+    $@ and carp("$pkg_loc -- $@\n") and return;
 
     return \%pkg_details;
 }
