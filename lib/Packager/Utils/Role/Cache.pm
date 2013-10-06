@@ -99,7 +99,7 @@ sub _build_cached_packages
     return $cached_pkgs;
 }
 
-has cache_timestamp => ( is => "lazy" );
+has cache_timestamp => ( is => "lazy", predicate => 1 );
 
 sub _build_cache_timestamp
 {
@@ -124,7 +124,7 @@ sub cache_packages
     my $packages = $self->packages;
 
     $self->has_cache_modified or return;
-    $self->cache_modified > $self->cache_timestamp or return;
+    $self->cache_modified > $self->cache_timestamp or return if $self->cache_timestamp;
 
     foreach my $pkg_system ( keys %$packages )
     {
