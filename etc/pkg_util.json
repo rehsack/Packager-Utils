@@ -1,0 +1,7 @@
+{
+    "connect_info" : {
+	"dsn" : "dbi:SQLite:dbname=packages.db",
+	"user" : "",
+	"password" : ""
+    }
+}
