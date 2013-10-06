@@ -5,7 +5,7 @@ use Module::Build;
 
 my $builder = Module::Build->new(
     module_name         => 'Packager::Utils',
-    license             => 'Perl_5',
+    license             => 'perl',
     dist_author         => q{Jens Rehsack <rehsack@cpan.org>},
     dist_version_from   => 'lib/Packager/Utils.pm',
     release_status      => 'stable',
@@ -20,37 +20,34 @@ my $builder = Module::Build->new(
     },
     requires => {
         'perl' => 5.012,
-	'CPAN' => 0,
-	'CPAN::DistnameInfo' => 0,
-	'Getopt::Long' => 0,
 	'Module::CoreList' => 0,
 	'File::Basename' => 0,
-	'File::ConfigDir' => '0.004',
 	'File::ShareDir' => '1.03',
 	'File::Find::Rule' => '0.30',
 	'File::Path' => '2.00',
 	'File::Spec' => 0,
+	'Hash::MoreUtils' => '0.04',
+	'List::MoreUtils' => '0.04',
+	'MooX::Cmd' => 0,
+	'MooX::Options' => 0,
+	'MooX::ConfigFromFile' => 0,
+	'MooX::Roles::Pluggable' => 0,
+	# cache support (currently built-in!)
+	'DBI' => '1.628',
+	'DBD::SQLite' => 0,
+	'File::Find::Rule::Age' => 0,
+	'DBIx::Class' => '0.08250',
+	# cpan backend
+	'CPAN' => 0,
+	'CPAN::DistnameInfo' => 0,
+        # pkgsrc backend
+	'Carp::Assert' => 0,
+	'Cwd' => 0,
+	'IO::CaptureOutput' => 0,
+	'File::pushd' => 0,
+	# template role
+	'File::HomeDir' => '1.00',
 	'Template' => '2.20',
-	'MooX::Cmd' => 0
-    },
-    auto_features => {
-	pkgsrc_support => {
-	    description => "pkgsrc Support",
-	    requires => {
-		'Carp::Assert' => 0,
-		'Cwd' => 0,
-		'IO::CaptureOutput' => 0,
-		'File::pushd' => 0,
-	    },
-	},
-	cache_support => {
-	    description => "Cache enabling",
-	    requires => {
-		DBI => '1.628',
-		'DBD::SQLite' => 0,
-		'File::Find::Rule::Age' => 0,
-	    },
-	},
     },
     share_dir => { dist => [ 'share', ], },
     meta_merge => { resources => { repository => "https://github.com/rehsack/Packager-Utils", }, },
