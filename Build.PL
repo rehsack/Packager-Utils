@@ -32,6 +32,8 @@ my $builder = Module::Build->new(
 	'MooX::Options' => 0,
 	'MooX::ConfigFromFile' => 0,
 	'MooX::Roles::Pluggable' => 0,
+	# for deploying
+	'SQL::Translator' => 0,
 	# cache support (currently built-in!)
 	'DBI' => '1.628',
 	'DBD::SQLite' => 0,
