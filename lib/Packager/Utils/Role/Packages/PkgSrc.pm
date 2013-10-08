@@ -74,7 +74,8 @@ around "_build_installed_packages" => sub {
     if($self->has_packages_pattern)
     {
 	# XXX speed?
-	@packages = grep { match_glob( $self->packages_pattern, $_ ) } @packages;
+	my $rx_str = join("|", map { Text::Glob::glob_to_regex_string($_) } @{$self->packages_pattern} );
+	@packages = grep { $_ =~ m/$rx_str/ } @packages;
     }
     my %havepkgs =
       map { $_ =~ m/^(.*)-(v?[0-9].*?)$/ ? ( $1 => $2 ) : ( $_ => 0E0 ) }
