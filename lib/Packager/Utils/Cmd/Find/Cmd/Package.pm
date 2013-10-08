@@ -11,17 +11,17 @@ use MooX::Cmd;
 use MooX::Options with_config_from_file => 1;
 
 option modules => (
-		      is => "ro",
-                      format    => 's@',
-                      required  => 1,
-                      autosplit => 1,
-                      doc       => "Specify list of modules to resolve to distributions",
-                    );
+                    is        => "ro",
+                    format    => 's@',
+                    required  => 1,
+                    autosplit => 1,
+                    doc       => "Specify list of modules to resolve to distributions",
+                  );
 
 with "Packager::Utils::Role::Upstream", "Packager::Utils::Role::Packages",
   "Packager::Utils::Role::Template", "Packager::Utils::Role::Cache";
 
-    use Data::Dumper;
+use Data::Dumper;
 
 sub execute
 {

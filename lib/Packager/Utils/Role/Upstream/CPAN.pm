@@ -109,9 +109,7 @@ around "init_upstream" => sub {
     return 1;
 };
 
-has "cpan_versions" => (
-                         is => "lazy",
-                       );
+has "cpan_versions" => ( is => "lazy", );
 
 sub _build_cpan_versions
 {
@@ -195,7 +193,8 @@ around get_distribution_for_module => sub {
         foreach my $pkg_type ( keys %{$pkgs} )
         {
             push @found, grep { $_->{DIST_NAME} eq $cpan_dist } values %{ $pkgs->{$pkg_type} };
-	    defined( $Module::CoreList::version{$]}->{$module} ) and push @found, grep { $_->{PKG_NAME} eq "perl" } values %{ $pkgs->{$pkg_type} };
+            defined( $Module::CoreList::version{$]}->{$module} )
+              and push @found, grep { $_->{PKG_NAME} eq "perl" } values %{ $pkgs->{$pkg_type} };
         }
     }
 

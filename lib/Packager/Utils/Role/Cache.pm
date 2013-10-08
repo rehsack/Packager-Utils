@@ -99,7 +99,10 @@ sub _build_cached_packages
     return $cached_pkgs;
 }
 
-has cache_timestamp => ( is => "lazy", predicate => 1 );
+has cache_timestamp => (
+                         is        => "lazy",
+                         predicate => 1
+                       );
 
 sub _build_cache_timestamp
 {
@@ -131,7 +134,8 @@ sub cache_packages
         my $pkg_type =
           $schema->resultset('PackageType')->find_or_create( { pkg_type_name => $pkg_system } );
 
-        my $old_pkgs = $schema->resultset('Package')
+        my $old_pkgs =
+          $schema->resultset('Package')
           ->search( { pkg_type_id => $pkg_type->get_column('pkg_type_id') } );
         my $old_upstream =
           $schema->resultset('Upstream')

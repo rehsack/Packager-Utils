@@ -71,11 +71,12 @@ around "_build_installed_packages" => sub {
     $success or croak( "Error running " . $self->pkg_info_cmd . ": $stderr" );
     chomp $stdout;
     my @packages = split( "\n", $stdout );
-    if($self->has_packages_pattern)
+    if ( $self->has_packages_pattern )
     {
-	# XXX speed?
-	my $rx_str = join("|", map { Text::Glob::glob_to_regex_string($_) } @{$self->packages_pattern} );
-	@packages = grep { $_ =~ m/$rx_str/ } @packages;
+        # XXX speed?
+        my $rx_str =
+          join( "|", map { Text::Glob::glob_to_regex_string($_) } @{ $self->packages_pattern } );
+        @packages = grep { $_ =~ m/$rx_str/ } @packages;
     }
     my %havepkgs =
       map { $_ =~ m/^(.*)-(v?[0-9].*?)$/ ? ( $1 => $2 ) : ( $_ => 0E0 ) }
@@ -94,9 +95,9 @@ around "_build_packages" => sub {
     my $pkgsrc_base = $self->pkgsrc_base_dir();
     -d $pkgsrc_base or return $packaged;
     my %find_args = (
-                     mindepth => 2,
-                     maxdepth => 2
-                   );
+                      mindepth => 2,
+                      maxdepth => 2
+                    );
 
     if ( $self->cache_timestamp )
     {
@@ -107,20 +108,18 @@ around "_build_packages" => sub {
 
     $self->has_packages_pattern and $find_args{name} = $self->packages_pattern;
 
-    my @pkg_dirs = find(
-                         directory => %find_args,
-                         in => $pkgsrc_base
-                       );
+    my @pkg_dirs = find( directory => %find_args,
+                         in        => $pkgsrc_base );
 
     @pkg_dirs or return $packaged;
     $self->cache_modified(time);
 
     foreach my $pkg_dir (@pkg_dirs)
     {
-	# XXX File::Find::Rule extension ...
-	-f File::Spec->catfile($pkg_dir, "Makefile") or next;
+        # XXX File::Find::Rule extension ...
+        -f File::Spec->catfile( $pkg_dir, "Makefile" ) or next;
         my $pkg_det = $self->_fetch_full_pkg_details($pkg_dir);
-	$pkg_det or next;
+        $pkg_det or next;
         $packaged->{pkgsrc}->{ $pkg_det->{PKG_LOCATION} } = $pkg_det;
     }
 
