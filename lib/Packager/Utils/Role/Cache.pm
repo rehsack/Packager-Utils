@@ -8,7 +8,7 @@ our $VERSION = "0.001";
 use Moo::Role;
 use MooX::Options;
 
-use Hash::MoreUtils qw(slice_def_map);
+use Hash::MoreUtils qw(slice_exists_map);
 use List::MoreUtils qw(zip);
 
 require Packager::Utils::Cache::Schema;
@@ -40,9 +40,18 @@ my @pkg_cols = (
                  qw(pkg_name pkg_version pkg_maintainer pkg_installed),
                  qw(pkg_location pkg_homepage pkg_license pkg_master_sites),
                );
+my %pkg_cols = map { $_    => uc $_ } @pkg_cols;
+my %PKG_COLS = map { uc $_ => $_ } @pkg_cols;
+
 my @dist_cols = ( qw(dist_name dist_version dist_file), );
 
+my %dist_cols = map { $_    => uc $_ } @dist_cols;
+my %DIST_COLS = map { uc $_ => $_ } @dist_cols;
+
 my @upstream_cols = (qw(upstream_name upstream_version upstream_state upstream_comment));
+
+my %upstream_cols = map { $_    => uc $_ } @upstream_cols;
+my %UPSTREAM_COLS = map { uc $_ => $_ } @upstream_cols;
 
 sub _build_cached_packages
 {
@@ -150,21 +159,20 @@ sub cache_packages
             eval {
                 my $dist =
                   $schema->resultset('Distribution')
-                  ->find_or_create(
-                                 { slice_def_map( $pkg_detail, map { uc $_ => $_ } @dist_cols ) } );
+                  ->find_or_create( { slice_exists_map( $pkg_detail, %DIST_COLS ) } );
                 my $upstream = $schema->resultset('Upstream')->find_or_create(
-                                {
-                                  slice_def_map( $pkg_detail, map { uc $_ => $_ } @upstream_cols ),
-                                  dist_id => $dist->get_column('dist_id')
-                                }
+                                                 {
+                                                   slice_exists_map( $pkg_detail, %UPSTREAM_COLS ),
+                                                   dist_id => $dist->get_column('dist_id')
+                                                 }
                 );
                 $schema->resultset('Package')->create(
-                                     {
-                                       slice_def_map( $pkg_detail, map { uc $_ => $_ } @pkg_cols ),
-                                       pkg_type_id => $pkg_type->get_column('pkg_type_id'),
-                                       upstream_id => $upstream->get_column('upstream_id'),
-                                       dist_id     => $dist->get_column('dist_id')
-                                     }
+                                             {
+                                               slice_exists_map( $pkg_detail, %PKG_COLS ),
+                                               pkg_type_id => $pkg_type->get_column('pkg_type_id'),
+                                               upstream_id => $upstream->get_column('upstream_id'),
+                                               dist_id     => $dist->get_column('dist_id')
+                                             }
                 );
             };
             use Data::Dumper;
