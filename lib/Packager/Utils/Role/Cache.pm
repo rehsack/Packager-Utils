@@ -11,6 +11,8 @@ use MooX::Options;
 use Hash::MoreUtils qw(slice_exists_map);
 use List::MoreUtils qw(zip);
 
+use Data::Dumper;
+
 require Packager::Utils::Cache::Schema;
 
 option connect_info => (
@@ -157,10 +159,12 @@ sub cache_packages
         foreach my $pkg_detail ( values %{ $packages->{$pkg_system} } )
         {
             eval {
-                my $dist =
-                  $schema->resultset('Distribution')
-                  ->find_or_create( { slice_exists_map( $pkg_detail, %DIST_COLS ) } );
-                my $upstream = $schema->resultset('Upstream')->find_or_create(
+                my %dist_info = slice_exists_map( $pkg_detail, %DIST_COLS );
+		print Dumper \%dist_info;
+		my $dist = $schema->resultset('Distribution') ->find_or_create( \%dist_info );
+		print "Yay\n";
+                defined($pkg_detail->{UPSTREAM_NAME}) and $pkg_detail->{UPSTREAM_NAME} and
+		my $upstream = $schema->resultset('Upstream')->find_or_create(
                                                  {
                                                    slice_exists_map( $pkg_detail, %UPSTREAM_COLS ),
                                                    dist_id => $dist->get_column('dist_id')
@@ -170,12 +174,11 @@ sub cache_packages
                                              {
                                                slice_exists_map( $pkg_detail, %PKG_COLS ),
                                                pkg_type_id => $pkg_type->get_column('pkg_type_id'),
-                                               upstream_id => $upstream->get_column('upstream_id'),
+                                               upstream_id => $upstream ? $upstream->get_column('upstream_id') : undef,
                                                dist_id     => $dist->get_column('dist_id')
                                              }
                 );
             };
-            use Data::Dumper;
             $@ and print STDERR "$@\n", Dumper($pkg_detail);
         }
     }

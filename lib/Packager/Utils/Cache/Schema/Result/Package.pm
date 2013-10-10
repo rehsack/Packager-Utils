@@ -34,7 +34,7 @@ __PACKAGE__->table("PACKAGES");
 =head2 upstream_id
 
   data_type: 'integer'
-  is_nullable: 0
+  is_nullable: 1
   is_foreign_key: 1
 
 =head2 pkg_name
@@ -103,7 +103,7 @@ __PACKAGE__->add_columns(
     "upstream_id",
     {
        data_type      => "integer",
-       is_nullable    => 0,
+       is_nullable    => 1,
        is_foreign_key => 1,
     },
     "pkg_name",
