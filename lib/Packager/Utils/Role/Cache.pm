@@ -159,24 +159,25 @@ sub cache_packages
         foreach my $pkg_detail ( values %{ $packages->{$pkg_system} } )
         {
             eval {
+                # XXX according to riba don't use find_or_create
+                #     ==> work hard to improve!
                 my %dist_info = slice_exists_map( $pkg_detail, %DIST_COLS );
-		print Dumper \%dist_info;
-		my $dist = $schema->resultset('Distribution') ->find_or_create( \%dist_info );
-		print "Yay\n";
-                defined($pkg_detail->{UPSTREAM_NAME}) and $pkg_detail->{UPSTREAM_NAME} and
-		my $upstream = $schema->resultset('Upstream')->find_or_create(
+                my $dist = $schema->resultset('Distribution')->find_or_create( \%dist_info );
+                defined( $pkg_detail->{UPSTREAM_NAME} )
+                  and $pkg_detail->{UPSTREAM_NAME}
+                  and my $upstream = $schema->resultset('Upstream')->find_or_create(
                                                  {
                                                    slice_exists_map( $pkg_detail, %UPSTREAM_COLS ),
                                                    dist_id => $dist->get_column('dist_id')
                                                  }
-                );
+                  );
                 $schema->resultset('Package')->create(
-                                             {
-                                               slice_exists_map( $pkg_detail, %PKG_COLS ),
-                                               pkg_type_id => $pkg_type->get_column('pkg_type_id'),
-                                               upstream_id => $upstream ? $upstream->get_column('upstream_id') : undef,
-                                               dist_id     => $dist->get_column('dist_id')
-                                             }
+                         {
+                           slice_exists_map( $pkg_detail, %PKG_COLS ),
+                           pkg_type_id => $pkg_type->get_column('pkg_type_id'),
+                           upstream_id => $upstream ? $upstream->get_column('upstream_id') : undef,
+                           dist_id     => $dist->get_column('dist_id')
+                         }
                 );
             };
             $@ and print STDERR "$@\n", Dumper($pkg_detail);
