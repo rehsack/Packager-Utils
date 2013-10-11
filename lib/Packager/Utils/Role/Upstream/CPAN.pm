@@ -243,6 +243,9 @@ around "upstream_up2date_state" => sub {
     my @pkg_det_keys = (qw(DIST_NAME DIST_VERSION PKG_VERSION PKG_MASTER_SITES));
     my ( $dist_name, $dist_version, $pkg_version, $master_sites ) = @{$pkg_details}{@pkg_det_keys};
 
+    defined($master_sites) or return; # we want cpan!
+    defined($master_sites) and $master_sites !~ m/cpan/i and return;
+
     $self->cache_timestamp
       and $CPAN::Index::LAST_TIME > $self->cache_timestamp
       and
@@ -291,9 +294,6 @@ around "upstream_up2date_state" => sub {
 
     if ( !defined($cpan_version) )
     {
-        defined($master_sites)
-          and $master_sites !~ m/cpan/i
-          and return;
         return $pkg_details->{UPSTREAM_STATE} = $self->STATE_REMOVED_FROM_INDEX;
     }
     elsif ( _is_gt( $cpan_version, $dist_version ) )
