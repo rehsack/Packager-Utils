@@ -24,6 +24,8 @@ requires "cached_packages";
 
 sub _build_packages { $_[0]->cached_packages }
 
+sub create_package_info { {} }
+
 use MooX::Roles::Pluggable search_path => __PACKAGE__;
 
 1;

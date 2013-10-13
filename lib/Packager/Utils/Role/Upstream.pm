@@ -54,6 +54,8 @@ sub init_upstream { 1 }
 
 sub upstream_up2date_state { return; }
 
+sub create_module_info { {} }
+
 use MooX::Roles::Pluggable search_path => __PACKAGE__;
 
 1;

@@ -3,6 +3,8 @@ package Packager::Utils::Role::Upstream::CPAN;
 use Moo::Role;
 use MooX::Options;
 
+use MetaCPAN::API ();
+
 use CPAN;
 use CPAN::DistnameInfo;
 use Module::CoreList;
@@ -109,7 +111,9 @@ around "init_upstream" => sub {
     return 1;
 };
 
-has "cpan_versions" => ( is => "lazy", );
+has "cpan_versions" => (
+                         is => "lazy",
+                       );
 
 sub _build_cpan_versions
 {
@@ -177,8 +181,7 @@ around get_distribution_for_module => sub {
     my $next = shift;
     my $self = shift;
 
-    my $other_found = $self->$next(@_);
-    $other_found and return $other_found;
+    my $found = $self->$next(@_);
 
     my $module = shift;
     my @found;
@@ -198,7 +201,8 @@ around get_distribution_for_module => sub {
         }
     }
 
-    @found and return { $module => \@found };
+    @found and return { ( $found ? %{$found} : () ), cpan => { $module => \@found } };
+    $found and return $found;
 
     return;
 };
@@ -243,7 +247,7 @@ around "upstream_up2date_state" => sub {
     my @pkg_det_keys = (qw(DIST_NAME DIST_VERSION PKG_VERSION PKG_MASTER_SITES));
     my ( $dist_name, $dist_version, $pkg_version, $master_sites ) = @{$pkg_details}{@pkg_det_keys};
 
-    defined($master_sites) or return; # we want cpan!
+    defined($master_sites) or return;    # we want cpan!
     defined($master_sites) and $master_sites !~ m/cpan/i and return;
 
     $self->cache_timestamp
@@ -306,6 +310,41 @@ around "upstream_up2date_state" => sub {
     }
 
     return $pkg_details->{UPSTREAM_STATE} = $self->STATE_OK;
+};
+
+around "create_module_info" => sub {
+    my $next  = shift;
+    my $self  = shift;
+    my $minfo = $self->$next(@_);
+
+    my $module     = shift;
+    my $categories = shift;
+
+    my ( $mod, $dist );
+    eval {
+        my $mcpan = MetaCPAN::API->new();
+        $mod = $mcpan->module($module);
+        $dist = $mcpan->release( distribution => $mod->{distribution} );
+    };
+    $@ and return $minfo;
+
+    defined $minfo or $minfo = {};
+
+    $minfo->{cpan} = {
+                       DIST_NAME   => $dist->{name},
+                       DIST        => $dist->{distribution},
+                       DIST_FILE   => $dist->{archive},
+                       DIST_URL    => $dist->{download_url},
+                       CATEGORIES  => $categories,
+                       PKG_LICENSE => $dist->{license},
+                       PKG_COMMENT => $dist->{abstract},
+                       PKG_PREREQ  => $dist->{dependency},
+                       PKG_DESCR   => $mod->{description},
+                     };
+
+    $dist->{metadata}->{x_breaks} and $minfo->{CONFLICTS} = $dist->{metadata}->{x_breaks};
+
+    return $minfo;
 };
 
 1;

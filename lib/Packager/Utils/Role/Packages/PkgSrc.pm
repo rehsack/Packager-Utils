@@ -6,7 +6,7 @@ use MooX::Options;
 use Carp qw(carp croak);
 use Carp::Assert qw(affirm);
 use Cwd qw();
-use File::Basename qw();
+use File::Basename qw(fileparse);
 use File::Spec qw();
 use File::Find::Rule qw(find);
 use File::pushd;
@@ -130,7 +130,7 @@ has '_pkg_var_names' => (
     is      => 'ro',
     default => sub {
         return [
-                 qw(DISTNAME DISTFILES EXTRACT_SUFX),
+                 qw(DISTNAME DISTFILES),
                  qw(PKGNAME PKGVERSION MAINTAINER),
                  qw(HOMEPAGE LICENSE MASTER_SITES)
                ];
@@ -140,10 +140,12 @@ has '_pkg_var_names' => (
 
 sub _get_pkg_vars
 {
-    my ( $self, $pkg_loc ) = @_;
-    my $varnames     = $self->_pkg_var_names;
+    my ( $self, $pkg_loc, $varnames ) = @_;
+    $varnames or $varnames = $self->_pkg_var_names;
     my $varnames_str = join( " ", @$varnames );
-    my $last_dir     = pushd($pkg_loc);
+    File::Spec->file_name_is_absolute($pkg_loc)
+      or $pkg_loc = File::Spec->catdir( $self->pkgsrc_base_dir, $pkg_loc );
+    my $last_dir = pushd($pkg_loc);
     my ( $stdout, $stderr, $success, $exit_code ) =
       capture_exec( $self->bmake_cmd, "show-vars", "VARNAMES=$varnames_str" );
     if ( $success and 0 == $exit_code )
@@ -192,6 +194,187 @@ sub _fetch_full_pkg_details
 
     return \%pkg_details;
 }
+
+my %cpan2pkg_licenses = (
+                          agpl_3      => 'gnu-agpl-v3',
+                          apache_1_1  => 'apache-1.1',
+                          apache_2_0  => 'apache-2.0',
+                          artistic_1  => 'artistic',
+                          artistic_2  => 'artistic-2.0',
+                          bsd         => 'modified-bsd',
+                          freebsd     => '2-clause-bsd',
+                          gfdl_1_2    => 'gnu-fdl-v1.2',
+                          gfdl_1_3    => 'gnu-fdl-v1.3',
+                          gpl_1       => 'gnu-gpl-v1',
+                          gpl_2       => 'gnu-gpl-v2',
+                          gpl_3       => 'gnu-gpl-v3',
+                          lgpl_2_1    => 'gnu-lgpl-v2.1',
+                          lgpl_3_0    => 'gnu-lgpl-v3',
+                          mit         => 'mit',
+                          mozilla_1_0 => 'mpl-1.0',
+                          mozilla_1_1 => 'mpl-1.1',
+                          perl_5      => '${PERL5_LICENSE}',
+                          qpl_1_0     => 'qpl-v1.0',
+                          zlib        => 'zlib',
+                        );
+
+sub _create_pkgsrc_p5_package_info
+{
+    my ( $self, $minfo, $pkg_det ) = @_;
+
+    my $pkg_tpl_vars = [
+        qw(SVR4_PKGNAME CATEGORIES COMMENT HOMEPAGE LICENSE MAINTAINER CONFLICTS SUPERSEDES USE_LANGUAGES USE_TOOLS)
+    ];
+    $pkg_det
+      and $pkg_det->{PKG_LOCATION}
+      and $pkg_det = { %$pkg_det, $self->_get_pkg_vars( $pkg_det->{PKG_LOCATION}, $pkg_tpl_vars ) };
+
+    my $pinfo = {
+        PKG_NAME   => "p5-\${DIST_NAME}",
+        DIST_NAME  => $minfo->{DIST_NAME},
+        CATEGORIES => $minfo->{CATEGORIES},
+        LICENSE    => join(
+            " AND ",
+            map
+            {
+                $cpan2pkg_licenses{$_} ? $cpan2pkg_licenses{$_} : "unknown($_)"
+              } @{ $minfo->{PKG_LICENSE} }
+        ),
+        HOMEPAGE    => 'https://metacpan.org/release/' . $minfo->{DIST},
+        MAINTAINER  => 'pkgsrc-users@NetBSD.org',
+        COMMENT     => $minfo->{PKG_COMMENT},
+        DESCRIPTION => $minfo->{PKG_DESCR},
+                };
+    $minfo->{DIST_URL} =~ m|authors/id/(\w/\w\w/[^/]+)|
+      and $pinfo->{MASTER_SITES} = '${MASTER_SITE_PERL_CPAN:=../../authors/id/' . $1,
+
+      my ( $bn, $dir, $sfx ) = fileparse( $minfo->{DIST_FILE} );
+    $sfx = substr( $bn, length( $minfo->{DIST_NAME} ) );
+    $sfx ne ".tar.gz" and $pinfo->{EXTRACT_SUFX} = $sfx;
+
+    # XXX check MAINTAINER / HOMEPAGE / CATEGORIES
+    @{ $pinfo->{CATEGORIES} } or $pinfo->{CATEGORIES} = $pkg_det->{CATEGORIES} if ($pkg_det);
+
+    foreach my $keepvar (qw(SVR4_PKGNAME USE_LANGUAGES USE_TOOLS PKG_LOCATION))
+    {
+        defined $pkg_det->{$keepvar} and $pinfo->{$keepvar} = $pkg_det->{$keepvar};
+    }
+
+    # XXX somehow a PKG_LOCATION proposal could be created???
+
+    my ( %bldreq, %bldrec, %rtreq, %rtrec, %bldcon, %rtcon );
+    foreach my $dep ( @{ $minfo->{PKG_PREREQ} } )
+    {
+        my $req;
+        my $dep_dist = $self->get_distribution_for_module( $dep->{module} );
+        my $dep_det =
+             $dep_dist
+          && $dep_dist->{cpan}
+          && $dep_dist->{cpan}->{ $dep->{module} } ? $dep_dist->{cpan}->{ $dep->{module} } : undef;
+        $dep_det
+          or $req = {
+                      PKG_NAME     => $dep->{module},
+                      REQ_VERSION  => $dep->{version},    # XXX numify? -[0-9]*
+                      PKG_LOCATION => 'n/a',
+                    };
+        $dep_det and @{$dep_det} == 1 and $req = {
+            PKG_NAME    => $dep_det->[0]->{PKG_NAME},
+            REQ_VERSION => $dep->{version},          # XXX numify? -[0-9]*, size matters (see M::B)!
+            PKG_LOCATION => $dep_det->[0]->{PKG_LOCATION},
+                                                 };
+        $dep_det and @{$dep_det} > 1 and $req = {
+            PKG_NAME    => $dep_det->[0]->{PKG_NAME},
+            REQ_VERSION => $dep->{version},          # XXX numify? -[0-9]*, size matters (see M::B)!
+            PERL_VERSION => $dep_det->[1]->{DIST_VERSION},    # XXX find lowest reqd. Perl5 version!
+            PKG_LOCATION => $dep_det->[0]->{PKG_LOCATION},
+                                                };
+
+        $dep->{phase} eq 'configure'
+          and $dep->{relationship} eq 'requires'
+          and $bldreq{ $req->{PKG_NAME} } = $req;
+        $dep->{phase} eq 'develop'
+          and $dep->{relationship} eq 'requires'
+          and $bldreq{ $req->{PKG_NAME} } = $req;
+        $dep->{phase} eq 'test'
+          and $dep->{relationship} eq 'requires'
+          and $bldreq{ $req->{PKG_NAME} } = $req;
+
+        $dep->{phase} eq 'configure'
+          and $dep->{relationship} eq 'recommends'
+          and $bldrec{ $req->{PKG_NAME} } = $req;
+        $dep->{phase} eq 'develop'
+          and $dep->{relationship} eq 'recommends'
+          and $bldrec{ $req->{PKG_NAME} } = $req;
+        $dep->{phase} eq 'test'
+          and $dep->{relationship} eq 'recommends'
+          and $bldrec{ $req->{PKG_NAME} } = $req;
+
+        $dep->{phase} eq 'configure'
+          and $dep->{relationship} eq 'conflicts'
+          and $bldcon{ $req->{PKG_NAME} } = $req;
+        $dep->{phase} eq 'develop'
+          and $dep->{relationship} eq 'conflicts'
+          and $bldcon{ $req->{PKG_NAME} } = $req;
+        $dep->{phase} eq 'test'
+          and $dep->{relationship} eq 'conflicts'
+          and $bldcon{ $req->{PKG_NAME} } = $req;
+
+        $dep->{phase} eq 'runtime'
+          and $dep->{relationship} eq 'requires'
+          and $rtreq{ $req->{PKG_NAME} } = $req;
+
+        $dep->{phase} eq 'runtime'
+          and $dep->{relationship} eq 'recommends'
+          and $rtrec{ $req->{PKG_NAME} } = $req;
+
+        $dep->{phase} eq 'runtime'
+          and $dep->{relationship} eq 'conflicts'
+          and $rtcon{ $req->{PKG_NAME} } = $req;
+    }
+
+    foreach my $pkg ( keys %rtrec )
+    {
+        defined $rtreq{$pkg} and $rtreq{$pkg} = delete $rtrec{$pkg};
+    }
+
+    foreach my $pkg ( keys %bldrec )
+    {
+        defined $bldreq{$pkg} and $bldreq{$pkg} = delete $bldrec{$pkg};
+    }
+
+    foreach my $pkg ( keys %bldreq )
+    {
+        defined $rtreq{$pkg} and $rtreq{$pkg} = delete $bldreq{$pkg};
+    }
+
+    push( @{ $pinfo->{BUILD_REQUIRES} },
+          sort { $a->{PKG_NAME} cmp $b->{PKG_NAME} } values %bldreq );
+    push(
+          @{ $pinfo->{BUILD_RECOMMENDS} },
+          sort { $a->{PKG_NAME} cmp $b->{PKG_NAME} } values %bldrec
+        );
+    push(
+          @{ $pinfo->{BUILD_CONFLICTS} },
+          sort { $a->{PKG_NAME} cmp $b->{PKG_NAME} } values %bldcon
+        );
+    push( @{ $pinfo->{REQUIRES} },   sort { $a->{PKG_NAME} cmp $b->{PKG_NAME} } values %rtreq );
+    push( @{ $pinfo->{RECOMMENDS} }, sort { $a->{PKG_NAME} cmp $b->{PKG_NAME} } values %rtrec );
+    push( @{ $pinfo->{CONFLICTS} },  sort { $a->{PKG_NAME} cmp $b->{PKG_NAME} } values %rtcon );
+
+    return $pinfo;
+}
+
+around "create_package_info" => sub {
+    my $next  = shift;
+    my $self  = shift;
+    my $pinfo = $self->$next(@_);
+
+    my ( $minfo, $pkg_det ) = @_;
+    defined $minfo->{cpan}
+      and $pinfo->{pkgsrc} = $self->_create_pkgsrc_p5_package_info( $minfo->{cpan}, $pkg_det );
+
+    return $pinfo;
+};
 
 =head1 NAME
 
