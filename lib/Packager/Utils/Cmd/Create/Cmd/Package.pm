@@ -29,6 +29,13 @@ option categories => (
 with "Packager::Utils::Role::Upstream", "Packager::Utils::Role::Packages",
   "Packager::Utils::Role::Template", "Packager::Utils::Role::Cache";
 
+has "+output" => ( is => "rw", required => 0 );
+
+sub _build_template_tool
+{
+    return qw(createpkg);
+}
+
 sub execute
 {
     my ( $self, $args_ref, $chain_ref ) = @_;
@@ -55,8 +62,14 @@ sub execute
         push( @pkgs, $pinfo );
     }
 
-    use Data::Dumper;
-    print( Dumper( \@pkgs ) );
+    foreach my $pkg (@pkgs)
+    {
+	while( my ($pkg_type, $pkg_info) = each %$pkg )
+	{
+	    $self->output([$pkg_type]);
+	    $self->process_templates( $pkg_type, $pkg_info );
+	}
+    }
 
     exit 0;
 }

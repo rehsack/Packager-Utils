@@ -23,6 +23,11 @@ with "Packager::Utils::Role::Upstream", "Packager::Utils::Role::Packages",
 
 use Data::Dumper;
 
+sub _build_template_tool
+{
+    return qw(findpkg);
+}
+
 sub execute
 {
     my ( $self, $args_ref, $chain_ref ) = @_;

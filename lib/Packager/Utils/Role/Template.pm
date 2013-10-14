@@ -34,13 +34,23 @@ sub _build_target
     return File::HomeDir->my_home();
 }
 
+has template_tool => ( is => "lazy" );
+
+sub _build_template_tool
+{
+    my ($self) = @_;
+    ( my $tool = ref($self) ) =~ s/.*::([^:]+)$/$1/;
+    $tool = lc $tool;
+
+    return $tool;
+}
+
 has template_directories => ( is => "lazy" );
 
 sub _build_template_directories
 {
     my ($self) = @_;
-    ( my $tool = ref($self) ) =~ s/.*::([^:]+)$/$1/;
-    $tool = lc $tool;
+    my $tool = $self->template_tool;
 
     my @tt_src_dirs =
       grep { -d $_ }
@@ -82,7 +92,7 @@ sub process_templates
     {
         defined $self->templates->{$tgt} or next;    # XXX die ?
         my $tpl = $self->templates->{$tgt};
-        my $tgtfn = File::Spec->catfile( $self->target, $pkg_system . "-up2date." . $tpl->{ext} );
+        my $tgtfn = File::Spec->catfile( $self->target, $pkg_system . "-." . $self->template_tool . $tpl->{ext} );
 
         $template->process( $tpl->{fqpn}, $vars, $tgtfn )
           or die $template->error();
