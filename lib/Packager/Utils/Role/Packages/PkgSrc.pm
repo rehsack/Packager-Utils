@@ -235,9 +235,10 @@ sub _create_pkgsrc_p5_package_info
         CATEGORIES => $minfo->{CATEGORIES},
         LICENSE    => join(
             " AND ",
-            map
-            {
-                $cpan2pkg_licenses{$_} ? $cpan2pkg_licenses{$_} : "unknown($_)"
+            map {
+                    $cpan2pkg_licenses{$_}
+                  ? $cpan2pkg_licenses{$_}
+                  : "unknown($_)"
               } @{ $minfo->{PKG_LICENSE} }
         ),
         HOMEPAGE    => 'https://metacpan.org/release/' . $minfo->{DIST},
@@ -246,7 +247,7 @@ sub _create_pkgsrc_p5_package_info
         DESCRIPTION => $minfo->{PKG_DESCR},
                 };
     $minfo->{DIST_URL} =~ m|authors/id/(\w/\w\w/[^/]+)|
-      and $pinfo->{MASTER_SITES} = '${MASTER_SITE_PERL_CPAN:=../../authors/id/' . $1. '/}',
+      and $pinfo->{MASTER_SITES} = '${MASTER_SITE_PERL_CPAN:=../../authors/id/' . $1 . '/}',
 
       my ( $bn, $dir, $sfx ) = fileparse( $minfo->{DIST_FILE} );
     $sfx = substr( $bn, length( $minfo->{DIST_NAME} ) );
@@ -361,7 +362,7 @@ sub _create_pkgsrc_p5_package_info
     push( @{ $pinfo->{RECOMMENDS} }, sort { $a->{PKG_NAME} cmp $b->{PKG_NAME} } values %rtrec );
     push( @{ $pinfo->{CONFLICTS} },  sort { $a->{PKG_NAME} cmp $b->{PKG_NAME} } values %rtcon );
 
-    push( @{$pinfo->{INCLUDES}}, "../../lang/perl5/modules.mk" );
+    push( @{ $pinfo->{INCLUDES} }, "../../lang/perl5/modules.mk" );
 
     return $pinfo;
 }

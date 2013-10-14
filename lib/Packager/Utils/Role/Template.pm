@@ -91,8 +91,9 @@ sub process_templates
     foreach my $tgt ( @{ $self->output } )
     {
         defined $self->templates->{$tgt} or next;    # XXX die ?
-        my $tpl = $self->templates->{$tgt};
-        my $tgtfn = File::Spec->catfile( $self->target, $pkg_system . "-." . $self->template_tool . $tpl->{ext} );
+        my $tpl   = $self->templates->{$tgt};
+        my $tgtfn = File::Spec->catfile( $self->target,
+                                         $pkg_system . "-." . $self->template_tool . $tpl->{ext} );
 
         $template->process( $tpl->{fqpn}, $vars, $tgtfn )
           or die $template->error();

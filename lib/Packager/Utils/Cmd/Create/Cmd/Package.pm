@@ -29,7 +29,10 @@ option categories => (
 with "Packager::Utils::Role::Upstream", "Packager::Utils::Role::Packages",
   "Packager::Utils::Role::Template", "Packager::Utils::Role::Cache";
 
-has "+output" => ( is => "rw", required => 0 );
+has "+output" => (
+                   is       => "rw",
+                   required => 0
+                 );
 
 sub _build_template_tool
 {
@@ -64,11 +67,11 @@ sub execute
 
     foreach my $pkg (@pkgs)
     {
-	while( my ($pkg_type, $pkg_info) = each %$pkg )
-	{
-	    $self->output([$pkg_type]);
-	    $self->process_templates( $pkg_type, $pkg_info );
-	}
+        while ( my ( $pkg_type, $pkg_info ) = each %$pkg )
+        {
+            $self->output( [$pkg_type] );
+            $self->process_templates( $pkg_type, $pkg_info );
+        }
     }
 
     exit 0;
