@@ -23,14 +23,18 @@ LICENSE=	[% LICENSE %]
 DEPENDS+=	[% req.PKG_NAME %]>=[% req.REQ_VERSION %]:../../[% req.PKG_LOCATION -%]
 [% END %]
 
+[%- IF RECOMMENDS.size %]
 # recommended modules ...
 [%- FOREACH req IN RECOMMENDS; %]
 DEPENDS+=	[% req.PKG_NAME %]>=[% req.REQ_VERSION %]:../../[% req.PKG_LOCATION -%]
-[% END %]
+[% END -%]
+[% END -%]
 
 [%- FOREACH req IN BUILD_REQUIRES; %]
 BUILD_DEPENDS+=	[% req.PKG_NAME %]>=[% req.REQ_VERSION %]:../../[% req.PKG_LOCATION -%]
 [% END %]
+
+PKG_INSTALLATION_TYPES= overwrite pkgviews
 
 [%- FOREACH extra IN EXTRA_VARS; %]
 [% extra.key %]=	[% extra.value -%]
@@ -38,5 +42,5 @@ BUILD_DEPENDS+=	[% req.PKG_NAME %]>=[% req.REQ_VERSION %]:../../[% req.PKG_LOCAT
 
 [%- FOREACH line IN INCLUDES; %]
 .include "[% line %]"
-[% END -%]
+[%- END %]
 .include "../../mk/bsd.pkg.mk"

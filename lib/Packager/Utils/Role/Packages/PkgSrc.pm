@@ -222,6 +222,7 @@ sub _create_pkgsrc_p5_package_info
 {
     my ( $self, $minfo, $pkg_det ) = @_;
 
+    my $pkgsrc_base = $self->pkgsrc_base_dir();
     my $pkg_tpl_vars = [
         qw(SVR4_PKGNAME CATEGORIES COMMENT HOMEPAGE LICENSE MAINTAINER CONFLICTS SUPERSEDES USE_LANGUAGES USE_TOOLS)
     ];
@@ -261,6 +262,9 @@ sub _create_pkgsrc_p5_package_info
         defined $pkg_det->{$keepvar} and $pinfo->{$keepvar} = $pkg_det->{$keepvar};
     }
 
+    $pinfo->{EXTRA_VARS}->{PERL5_PACKLIST} =
+      File::Spec->catdir( 'auto', split( '-', $minfo->{DIST} ), '.packlist' );
+
     # XXX somehow a PKG_LOCATION proposal could be created???
 
     my ( %bldreq, %bldrec, %rtreq, %rtrec, %bldcon, %rtcon );
@@ -289,6 +293,11 @@ sub _create_pkgsrc_p5_package_info
             PERL_VERSION => $dep_det->[1]->{DIST_VERSION},    # XXX find lowest reqd. Perl5 version!
             PKG_LOCATION => $dep_det->[0]->{PKG_LOCATION},
                                                 };
+
+              $req->{PKG_NAME} eq 'Module::Build'
+          and $dep->{phase} eq 'configure'
+          and $dep->{relationship} eq 'requires'
+          and $pinfo->{EXTRA_VARS}->{PERL5_MODULE_TYPE} = 'Module::Build';
 
         $dep->{phase} eq 'configure'
           and $dep->{relationship} eq 'requires'
@@ -348,19 +357,37 @@ sub _create_pkgsrc_p5_package_info
         defined $rtreq{$pkg} and $rtreq{$pkg} = delete $bldreq{$pkg};
     }
 
-    push( @{ $pinfo->{BUILD_REQUIRES} },
-          sort { $a->{PKG_NAME} cmp $b->{PKG_NAME} } values %bldreq );
-    push(
-          @{ $pinfo->{BUILD_RECOMMENDS} },
-          sort { $a->{PKG_NAME} cmp $b->{PKG_NAME} } values %bldrec
-        );
-    push(
-          @{ $pinfo->{BUILD_CONFLICTS} },
-          sort { $a->{PKG_NAME} cmp $b->{PKG_NAME} } values %bldcon
-        );
-    push( @{ $pinfo->{REQUIRES} },   sort { $a->{PKG_NAME} cmp $b->{PKG_NAME} } values %rtreq );
-    push( @{ $pinfo->{RECOMMENDS} }, sort { $a->{PKG_NAME} cmp $b->{PKG_NAME} } values %rtrec );
-    push( @{ $pinfo->{CONFLICTS} },  sort { $a->{PKG_NAME} cmp $b->{PKG_NAME} } values %rtcon );
+    my %depdefs = (
+                    BUILD_REQUIRES   => \%bldreq,
+                    BUILD_RECOMMENDS => \%bldrec,
+                    BUILD_CONFLICTS  => \%bldcon,
+                    REQUIRES         => \%rtreq,
+                    RECOMMENDS       => \%rtrec,
+                    CONFLICTS        => \%rtcon,
+                  );
+
+    #while( my ($dept, $deps) = each %depdefs )
+    foreach my $dept ( keys %depdefs )
+    {
+        my $deps = $depdefs{$dept};
+        unless ( $dept =~ m/CONFLICT/ )
+        {
+            foreach my $depn ( keys %$deps )
+            {
+                -f File::Spec->catfile( $pkgsrc_base, $deps->{$depn}->{PKG_LOCATION},
+                                        "buildlink3.mk" )
+                  or next;
+                my $dep = delete $deps->{$depn};
+                push(
+                      @{ $pinfo->{INCLUDES} },
+                      File::Spec->catfile( "..", "..", $dep->{PKG_LOCATION}, "buildlink3.mk" )
+                    );
+                $dept =~ m/BUILD/ and $pinfo->{EXTRA_VARS}->{"BUILDLINK_DEPMETHOD.$depn"} = 'build';
+            }
+        }
+
+        push( @{ $pinfo->{$dept} }, sort { $a->{PKG_NAME} cmp $b->{PKG_NAME} } values %$deps );
+    }
 
     push( @{ $pinfo->{INCLUDES} }, "../../lang/perl5/modules.mk" );
 
