@@ -226,12 +226,20 @@ sub _create_pkgsrc_p5_package_info
     my $pkg_tpl_vars = [
         qw(SVR4_PKGNAME CATEGORIES COMMENT HOMEPAGE LICENSE MAINTAINER CONFLICTS SUPERSEDES USE_LANGUAGES USE_TOOLS)
     ];
+          $pkg_det
+      and $minfo->{PKG4MOD}
+      and $pkg_det->{cpan}->{ $minfo->{PKG4MOD} }
+      and $pkg_det = $pkg_det->{cpan}->{ $minfo->{PKG4MOD} }->[0];    # deref search result
     $pkg_det
       and $pkg_det->{PKG_LOCATION}
       and $pkg_det = { %$pkg_det, $self->_get_pkg_vars( $pkg_det->{PKG_LOCATION}, $pkg_tpl_vars ) };
+          $pkg_det
+      and $pkg_det->{SVR4_PKGNAME}
+      and index( $pkg_det->{SVR4_PKGNAME}, $pkg_det->{PKG_NAME} ) != -1
+      and delete $pkg_det->{SVR4_PKGNAME};
 
     my $pinfo = {
-        PKG_NAME   => "p5-\${DIST_NAME}",
+        PKG_NAME   => "p5-\${DISTNAME}",
         DIST_NAME  => $minfo->{DIST_NAME},
         CATEGORIES => $minfo->{CATEGORIES},
         LICENSE    => join(
@@ -244,7 +252,7 @@ sub _create_pkgsrc_p5_package_info
         ),
         HOMEPAGE    => 'https://metacpan.org/release/' . $minfo->{DIST},
         MAINTAINER  => 'pkgsrc-users@NetBSD.org',
-        COMMENT     => $minfo->{PKG_COMMENT},
+        COMMENT     => ucfirst( $minfo->{PKG_COMMENT} ),
         DESCRIPTION => $minfo->{PKG_DESCR},
                 };
     $minfo->{DIST_URL} =~ m|authors/id/(\w/\w\w/[^/]+)|
@@ -290,14 +298,35 @@ sub _create_pkgsrc_p5_package_info
         $dep_det and @{$dep_det} > 1 and $req = {
             PKG_NAME    => $dep_det->[0]->{PKG_NAME},
             REQ_VERSION => $dep->{version},          # XXX numify? -[0-9]*, size matters (see M::B)!
-            PERL_VERSION => $dep_det->[1]->{DIST_VERSION},    # XXX find lowest reqd. Perl5 version!
+            CORE_NAME   => 'perl',                   # XXX find lowest reqd. Perl5 version!
+            CORE_VERSION => $dep_det->[1]->{DIST_VERSION},    # XXX find lowest reqd. Perl5 version!
             PKG_LOCATION => $dep_det->[0]->{PKG_LOCATION},
                                                 };
+
+        $req->{PKG_NAME} eq 'perl' and next;                  # core only ...
+        ( defined $req->{CORE_NAME} )
+          and !$req->{REQ_VERSION}
+          and next;    # -[0-9]* and in core means core is enough
+
+        $minfo->{GENERATOR}
+          and $minfo->{GENERATOR} eq 'Module::Build'
+          and $pinfo->{EXTRA_VARS}->{PERL5_MODULE_TYPE} = 'Module::Build';
+
+        $minfo->{GENERATOR}
+          and $minfo->{GENERATOR} eq 'Module::Install'
+          and $pinfo->{EXTRA_VARS}->{PERL5_MODULE_TYPE} = 'Module::Install::Bundled';
 
               $req->{PKG_NAME} eq 'Module::Build'
           and $dep->{phase} eq 'configure'
           and $dep->{relationship} eq 'requires'
-          and $pinfo->{EXTRA_VARS}->{PERL5_MODULE_TYPE} = 'Module::Build';
+          and $req->{CORE_VERSION}
+          and next;
+
+              $req->{PKG_NAME} eq 'ExtUtils::MakeMaker'
+          and $dep->{phase} eq 'configure'
+          and $dep->{relationship} eq 'requires'
+          and $req->{CORE_VERSION}
+          and next;
 
         $dep->{phase} eq 'configure'
           and $dep->{relationship} eq 'requires'
@@ -389,7 +418,7 @@ sub _create_pkgsrc_p5_package_info
         push( @{ $pinfo->{$dept} }, sort { $a->{PKG_NAME} cmp $b->{PKG_NAME} } values %$deps );
     }
 
-    push( @{ $pinfo->{INCLUDES} }, "../../lang/perl5/modules.mk" );
+    push( @{ $pinfo->{INCLUDES} }, "../../lang/perl5/module.mk" );
 
     return $pinfo;
 }

@@ -1,11 +1,21 @@
 # $NetBSD$
 #
 
+[% MACRO BUILD_DEP(t,req)
+   BLOCK;
+       IF req.CORE_NAME.defined;
+       t %]+=	{[% req.CORE_NAME %]>=[% req.CORE_VERSION %],[% req.PKG_NAME %]>=[% req.REQ_VERSION %]}:../../[% req.PKG_LOCATION %]
+[%     ELSIF req.REQ_VERSION;
+       t %]+=	[% req.PKG_NAME %]>=[% req.REQ_VERSION %]:../../[% req.PKG_LOCATION %]
+[%     ELSE;
+       t %]+=	[% req.PKG_NAME %]-[0-9]*:../../[% req.PKG_LOCATION %]
+[%     END;
+    END -%]
 DISTNAME=	[% DIST_NAME %]
 PKGNAME=	[% PKG_NAME %]
 [%- IF SVR4_PKGNAME.defined; %]
-SVR4_PKGNAME=	[% SVR4_PKGNAME %]
-[% END %]
+SVR4_PKGNAME=	[% SVR4_PKGNAME;
+END %]
 CATEGORIES=	[% CATEGORIES.join(" ") %]
 [%- IF MASTER_SITES.defined; %]
 MASTER_SITES=	[% MASTER_SITES %]
@@ -19,22 +29,30 @@ HOMEPAGE=	[% HOMEPAGE %]
 COMMENT=	[% COMMENT %]
 LICENSE=	[% LICENSE %]
 
-[%- FOREACH req IN REQUIRES; %]
-DEPENDS+=	[% req.PKG_NAME %]>=[% req.REQ_VERSION %]:../../[% req.PKG_LOCATION -%]
-[% END %]
+[% FOREACH req IN REQUIRES;
+BUILD_DEP('DEPENDS', req);
+END -%]
 
-[%- IF RECOMMENDS.size %]
-# recommended modules ...
-[%- FOREACH req IN RECOMMENDS; %]
-DEPENDS+=	[% req.PKG_NAME %]>=[% req.REQ_VERSION %]:../../[% req.PKG_LOCATION -%]
-[% END -%]
-[% END -%]
+[%- IF RECOMMENDS.size -%]# recommended modules ...
+[%     FOREACH req IN RECOMMENDS;
+            BUILD_DEP('DEPENDS', req);
+	END;
+    END -%]
 
-[%- FOREACH req IN BUILD_REQUIRES; %]
-BUILD_DEPENDS+=	[% req.PKG_NAME %]>=[% req.REQ_VERSION %]:../../[% req.PKG_LOCATION -%]
-[% END %]
+[% FOREACH req IN BUILD_REQUIRES;
+BUILD_DEP('BUILD_DEPENDS', req);
+END -%]
 
-PKG_INSTALLATION_TYPES= overwrite pkgviews
+[%- IF BUILD_RECOMMENDS.size -%]# recommended modules ...
+[%     FOREACH req IN BUILD_RECOMMENDS;
+            BUILD_DEP('BUILD_DEPENDS', req);
+	END;
+    END -%]
+
+[%- IF CONFLICTS.size -%]
+[% FOREACH req IN CONFLICTS %]
+# CONFLICTS+=	[% req.PKG_NAME %]<[% req.REQ_VERSION %]
+[% END; END -%]
 
 [%- FOREACH extra IN EXTRA_VARS; %]
 [% extra.key %]=	[% extra.value -%]

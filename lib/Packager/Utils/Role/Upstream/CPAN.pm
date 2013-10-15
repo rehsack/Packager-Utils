@@ -340,9 +340,13 @@ around "create_module_info" => sub {
                        PKG_COMMENT => $dist->{abstract},
                        PKG_PREREQ  => $dist->{dependency},
                        PKG_DESCR   => $mod->{description},
+                       PKG4MOD     => $module,
                      };
 
     $dist->{metadata}->{x_breaks} and $minfo->{CONFLICTS} = $dist->{metadata}->{x_breaks};
+    $dist->{metadata}->{generated_by}
+      and $dist->{metadata}->{generated_by} =~ m/^(.*) version/
+      and $minfo->{GENERATOR} = $1;
 
     return $minfo;
 };
