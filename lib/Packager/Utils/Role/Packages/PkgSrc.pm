@@ -279,7 +279,7 @@ sub _create_pkgsrc_p5_package_info
     foreach my $dep ( @{ $minfo->{PKG_PREREQ} } )
     {
         my $req;
-        my $dep_dist = $self->get_distribution_for_module( $dep->{module} );
+        my $dep_dist = $self->get_distribution_for_module( $dep->{module}, $dep->{version} );
         my $dep_det =
              $dep_dist
           && $dep_dist->{cpan}
