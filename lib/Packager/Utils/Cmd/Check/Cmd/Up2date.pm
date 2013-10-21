@@ -10,8 +10,31 @@ use Moo;
 use MooX::Cmd;
 use MooX::Options with_config_from_file => 1;
 
+option 'output' => (
+                     is        => "ro",
+                     format    => "s@",
+                     doc       => "Desired output templates",
+                     autosplit => 1,
+                     short     => "t",
+                     required  => 1,
+                   );
+
+option 'target' => (
+                     is     => "lazy",
+                     format => "s",
+                     doc    => "Desired target location for processed templates",
+                     short  => "o",
+                   );
+
 with "Packager::Utils::Role::Upstream", "Packager::Utils::Role::Packages",
   "Packager::Utils::Role::Template", "Packager::Utils::Role::Cache";
+
+sub _build_target
+{
+    eval "require File::HomeDir;";
+    $@ and return $ENV{HOME};
+    return File::HomeDir->my_home();
+}
 
 my @pkg_detail_keys = (
                         qw(DIST_NAME DIST_VERSION DIST_FILE PKG_NAME PKG_VERSION),

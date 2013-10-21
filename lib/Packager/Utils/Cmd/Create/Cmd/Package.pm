@@ -26,13 +26,12 @@ option categories => (
                        doc       => "Specify list of categories",
                      );
 
+has output => ( is => "rw" );
+
+has target => ( is => "rw" );
+
 with "Packager::Utils::Role::Upstream", "Packager::Utils::Role::Packages",
   "Packager::Utils::Role::Template", "Packager::Utils::Role::Cache";
-
-has "+output" => (
-                   is       => "rw",
-                   required => 0
-                 );
 
 sub _build_template_tool
 {

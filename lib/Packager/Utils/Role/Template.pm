@@ -11,28 +11,8 @@ use Template ();
 
 our $VERSION = '0.001';
 
-option 'output' => (
-                     is        => "ro",
-                     format    => "s@",
-                     doc       => "Desired output templates",
-                     autosplit => 1,
-                     short     => "t",
-                     required  => 1,
-                   );
-
-option 'target' => (
-                     is     => "lazy",
-                     format => "s",
-                     doc    => "Desired target location for processed templates",
-                     short  => "o",
-                   );
-
-sub _build_target
-{
-    eval "require File::HomeDir;";
-    $@ and return $ENV{HOME};
-    return File::HomeDir->my_home();
-}
+requires "output";
+requires "target";
 
 has template_tool => ( is => "lazy" );
 
