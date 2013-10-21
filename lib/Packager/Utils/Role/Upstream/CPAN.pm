@@ -183,7 +183,7 @@ around get_distribution_for_module => sub {
 
     my $found = $self->$next(@_);
 
-    my $module = shift;
+    my $module      = shift;
     my $mod_version = shift;
     my @found;
 
@@ -197,12 +197,12 @@ around get_distribution_for_module => sub {
         foreach my $pkg_type ( keys %{$pkgs} )
         {
             push @found, grep { $_->{DIST_NAME} eq $cpan_dist } values %{ $pkgs->{$pkg_type} };
-	    my @mc_qry = ($module);
-	    defined $mod_version and $mod_version and push(@mc_qry, $mod_version);
-	    my $first_core = Module::CoreList->first_release(@mc_qry);
-	    $first_core or next;
-	    # XXX make 5.18.1 from 5.018001
-	    my ($perl_pkg) = grep { $_->{PKG_NAME} eq "perl" } values %{ $pkgs->{$pkg_type} };
+            my @mc_qry = ($module);
+            defined $mod_version and $mod_version and push( @mc_qry, $mod_version );
+            my $first_core = Module::CoreList->first_release(@mc_qry);
+            $first_core or next;
+            # XXX make 5.18.1 from 5.018001
+            my ($perl_pkg) = grep { $_->{PKG_NAME} eq "perl" } values %{ $pkgs->{$pkg_type} };
             push @found, { %$perl_pkg, DIST_VERSION => $first_core };
         }
     }
