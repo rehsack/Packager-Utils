@@ -51,10 +51,13 @@ sub _build_templates
 
     my %templates = map {
         my $name = File::Basename::fileparse( $_, ".tt2" );
-        ( my $ext = $name ) =~ s/([^-]+).*/$1/;
+        ( my $type = $name ) =~ s/([^-]+).*/$1/;
+        my $option;
+        $name =~ m/^[^-]+-(.*)$/ and $option = $1;
         $name => {
-                   fqpn => $_,
-                   ext  => $ext
+                   fqpn   => $_,
+                   type   => $type,
+                   option => $option
                  }
     } @templates;
 
@@ -70,10 +73,8 @@ sub process_templates
 
     foreach my $tgt ( @{ $self->output } )
     {
-        defined $self->templates->{$tgt} or next;    # XXX die ?
-        my $tpl   = $self->templates->{$tgt};
-        my $tgtfn = File::Spec->catfile( $self->target,
-                                         $pkg_system . "-." . $self->template_tool . $tpl->{ext} );
+        my ( $tpl, $tgtfn ) = $self->target_file( $pkg_system, $tgt );
+        defined $tpl or next;    # XXX die ?
 
         $template->process( $tpl->{fqpn}, $vars, $tgtfn )
           or die $template->error();
