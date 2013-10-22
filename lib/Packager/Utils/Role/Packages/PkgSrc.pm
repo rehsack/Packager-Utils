@@ -13,6 +13,7 @@ use File::pushd;
 use IO::CaptureOutput qw(capture_exec);
 use List::MoreUtils qw(zip);
 use Text::Glob qw(match_glob);
+use Text::Wrap qw(wrap);
 
 # make it optional - with cache only ...
 use File::Find::Rule::Age;
@@ -250,15 +251,37 @@ sub _create_pkgsrc_p5_package_info
                   : "unknown($_)"
               } @{ $minfo->{PKG_LICENSE} }
         ),
-        HOMEPAGE    => 'https://metacpan.org/release/' . $minfo->{DIST},
-        MAINTAINER  => 'pkgsrc-users@NetBSD.org',
-        COMMENT     => ucfirst( $minfo->{PKG_COMMENT} ),
-        DESCRIPTION => $minfo->{PKG_DESCR},
+        HOMEPAGE   => 'https://metacpan.org/release/' . $minfo->{DIST},
+        MAINTAINER => 'pkgsrc-users@NetBSD.org',
+        COMMENT    => ucfirst( $minfo->{PKG_COMMENT} ),
+        LOCALBASE  => $pkgsrc_base,
                 };
+
+    $pinfo->{CATEGORIES} = [qw(devel)]
+      unless ( $pinfo->{CATEGORIES} and @{ $pinfo->{CATEGORIES} } );
     $minfo->{DIST_URL} =~ m|authors/id/(\w/\w\w/[^/]+)|
       and $pinfo->{MASTER_SITES} = '${MASTER_SITE_PERL_CPAN:=../../authors/id/' . $1 . '/}',
+      $pkg_det
+      and $pkg_det->{PKG_LOCATION}
+      and $pinfo->{ORIGIN} = File::Spec->catdir( $pkgsrc_base, $pkg_det->{PKG_LOCATION} );
+    $pinfo->{ORIGIN}
+      or $pinfo->{ORIGIN} =
+      File::Spec->catdir( $pkgsrc_base, $pinfo->{CATEGORIES}->[0], 'p5-' . $minfo->{DIST} );
 
-      my ( $bn, $dir, $sfx ) = fileparse( $minfo->{DIST_FILE} );
+    if ( $minfo->{PKG_DESCR} )
+    {
+        $pinfo->{DESCRIPTION} = wrap( "", "", $minfo->{PKG_DESCR} );
+    }
+    elsif ( $minfo->{PKG_COMMENT} )
+    {
+        $pinfo->{DESCRIPTION} = wrap( "", "", $minfo->{PKG_COMMENT} );
+    }
+    else
+    {
+        $pinfo->{DESCRIPTION} = "Perl module for " . $minfo->{PKG4MOD};
+    }
+
+    my ( $bn, $dir, $sfx ) = fileparse( $minfo->{DIST_FILE} );
     $sfx = substr( $bn, length( $minfo->{DIST_NAME} ) );
     $sfx ne ".tar.gz" and $pinfo->{EXTRACT_SUFX} = $sfx;
 

@@ -14,15 +14,15 @@ option modules => (
                     is        => "ro",
                     format    => 's@',
                     required  => 1,
-                    autosplit => 1,
+                    autosplit => ",",
                     doc       => "Specify list of modules to create packages for",
                   );
 
 option categories => (
-                       is        => "ro",
+                       is        => "lazy",
                        format    => 's@',
                        required  => 0,
-                       autosplit => 1,
+                       autosplit => ",",
                        doc       => "Specify list of categories",
                      );
 
@@ -33,9 +33,24 @@ has target => ( is => "rw" );
 with "Packager::Utils::Role::Upstream", "Packager::Utils::Role::Packages",
   "Packager::Utils::Role::Template", "Packager::Utils::Role::Cache";
 
+sub _build_categories { [] }
+
 sub _build_template_tool
 {
     return qw(createpkg);
+}
+
+sub target_file
+{
+    my ( $self, $pkg_system, $tgt ) = @_;
+
+    my $target = $self->target;
+    $self->templates->{$tgt} or return;
+    my $tpl = $self->templates->{$tgt};
+    $tpl->{type} eq $pkg_system or return;
+    my $tgtfn = File::Spec->catfile( $target, $tpl->{option} );
+
+    return ( $tpl, $tgtfn );
 }
 
 sub execute
@@ -64,11 +79,12 @@ sub execute
         push( @pkgs, $pinfo );
     }
 
+    $self->output( [ keys %{ $self->templates } ] );
     foreach my $pkg (@pkgs)
     {
         while ( my ( $pkg_type, $pkg_info ) = each %$pkg )
         {
-            $self->output( [$pkg_type] );
+            $self->target( $pkg_info->{ORIGIN} );
             $self->process_templates( $pkg_type, $pkg_info );
         }
     }
