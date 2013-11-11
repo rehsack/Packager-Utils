@@ -8,14 +8,13 @@ our $VERSION = "0.001";
 
 use Moo;
 use MooX::Cmd;
-use MooX::Options;
+use MooX::Options with_config_from_file => 1;
 
 sub execute
 {
-    my ( $self, $args_ref, $chain_ref ) = @_;
-    my @chain = @{$chain_ref};
+    my ( $self ) = @_;
 
-    die "Need to specify a sub-command!\n";
+    die "Need to specify a sub-command: " . join(", ", sort keys %{$self->command_commands}) . "!\n";
 }
 
 1;
