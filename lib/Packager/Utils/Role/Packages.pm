@@ -9,7 +9,13 @@ option packages_pattern => (
                              is        => "ro",
                              predicate => 1,
                              doc       => "Shell pattern filtering packages",
-                             format    => "s@"
+                             format    => "s@",
+			     long_doc  => "Shell pattern for restricting the " .
+					   "packages to be evaluated during " .
+					   "the \"scan for existing packages\" " .
+					   "process.\n\n" .
+					   "Examples: --packages-pattern \"p5-*\" ".
+					   "--packages-pattern perl5",
                            );
 
 # sub has_packages_pattern { defined $_[0]->packages_pattern and return 1; return; }

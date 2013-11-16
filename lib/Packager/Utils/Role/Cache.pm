@@ -20,6 +20,9 @@ option connect_info => (
                          doc      => 'How to connect to database',
                          required => 1,
                          json     => 1,
+			 long_doc => "Database connection info as json formatted string\n\n" .
+				     "Example: --connect-info " . 
+				     "'{\"dsn\":\"dbi:SQLite:dbname=packages.db\",\"user\":\"\",\"password\":\"\"}'",
                        );
 
 has schema => (

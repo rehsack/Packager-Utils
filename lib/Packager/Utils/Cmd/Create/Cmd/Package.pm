@@ -16,6 +16,11 @@ option modules => (
                     required  => 1,
                     autosplit => ",",
                     doc       => "Specify list of modules to create packages for",
+		    long_doc  => "Specify a list of modules to find the " .
+		                 "distribution for and package it. You can specify more " .
+				 "than one by either using --modules several times or " .
+				 "separating module names by ','.\n\n" .
+				 "For example: Package::Stash,ogd,ExtUtils::MakeMaker",
                   );
 
 option categories => (
@@ -24,6 +29,16 @@ option categories => (
                        required  => 0,
                        autosplit => ",",
                        doc       => "Specify list of categories",
+		       long_doc  => "Specify list of categories where the packages " .
+				    "should be created for. The first category is " .
+				    "always the primary one.\n\n" .
+				    "You can specify categories dedicate per module " .
+				    "by putting the module name in brackets after the " .
+				    "category name. Dedicated categories are always " .
+				    "prepended.\n\n" .
+				    "Example: --categories perl5 --modules Sys::Filesystem --categories " .
+				    "\"sysutils(Sys::Filesystem),filesystems(Sys::Filesystem)\" --modules Moo " .
+				    "\"devel(Moo)\"",
                      );
 
 has output => ( is => "rw" );
@@ -57,9 +72,6 @@ sub execute
 {
     my ( $self, $args_ref, $chain_ref ) = @_;
 
-    $self->init_upstream();
-    my $packages = $self->packages();
-
     my @categories;
     my %categories;
     foreach my $category ( @{ $self->categories } )
@@ -67,6 +79,9 @@ sub execute
         $category =~ m/^([^\(]+)\(([^\)]+)\)$/ and push( @{ $categories{$2} }, $1 ) and next;
         push @categories, $category;
     }
+
+    $self->init_upstream();
+    my $packages = $self->packages();
 
     my @pkgs;
     foreach my $module ( @{ $self->modules } )

@@ -21,9 +21,13 @@ use File::Find::Rule::Age;
 our $VERSION = '0.001';
 
 option 'pkgsrc_base_dir' => (
-                              is     => "lazy",
-                              format => "s",
-                              doc    => "Specify base directory of pkgsrc",
+                              is       => "lazy",
+                              format   => "s",
+                              doc      => "Specify base directory of pkgsrc",
+                              long_doc => "Can be used to specify or "
+                                . "override the base directory for "
+                                . "pkgsrc packages.\n\nExamples: "
+                                . "--pkgsrc-base-dir /home/user/pkgscr",
                             );
 
 sub _build_pkgsrc_base_dir
@@ -41,10 +45,11 @@ sub _build_pkgsrc_base_dir
     return;
 }
 
+# XXX guess that using Alien::Packags
 option 'pkgsrc_prefix' => (
-    is     => "ro",                                            # XXX guess that using Alien::Packags
-    format => "s",
-    doc    => "Specify prefix directory of pkgsrc binaries",
+                            is       => "ro",
+                            format   => "s",
+                            doc      => "Specify prefix directory of pkgsrc binaries",
                           );
 
 has pkg_info_cmd => ( is => "lazy" );
