@@ -16,14 +16,14 @@ use Data::Dumper;
 require Packager::Utils::Cache::Schema;
 
 option connect_info => (
-                         is       => 'ro',
-                         doc      => 'How to connect to database',
-                         required => 1,
-                         json     => 1,
-			 long_doc => "Database connection info as json formatted string\n\n" .
-				     "Example: --connect-info " . 
-				     "'{\"dsn\":\"dbi:SQLite:dbname=packages.db\",\"user\":\"\",\"password\":\"\"}'",
-                       );
+                is       => 'ro',
+                doc      => 'How to connect to database',
+                required => 1,
+                json     => 1,
+                long_doc => "Database connection info as json formatted string\n\n"
+                  . "Example: --connect-info "
+                  . "'{\"dsn\":\"dbi:SQLite:dbname=packages.db\",\"user\":\"\",\"password\":\"\"}'",
+);
 
 has schema => (
                 is       => 'lazy',

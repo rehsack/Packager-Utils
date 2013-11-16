@@ -47,9 +47,9 @@ sub _build_pkgsrc_base_dir
 
 # XXX guess that using Alien::Packags
 option 'pkgsrc_prefix' => (
-                            is       => "ro",
-                            format   => "s",
-                            doc      => "Specify prefix directory of pkgsrc binaries",
+                            is     => "ro",
+                            format => "s",
+                            doc    => "Specify prefix directory of pkgsrc binaries",
                           );
 
 has pkg_info_cmd => ( is => "lazy" );

@@ -16,29 +16,29 @@ option modules => (
                     required  => 1,
                     autosplit => ",",
                     doc       => "Specify list of modules to create packages for",
-		    long_doc  => "Specify a list of modules to find the " .
-		                 "distribution for and package it. You can specify more " .
-				 "than one by either using --modules several times or " .
-				 "separating module names by ','.\n\n" .
-				 "For example: Package::Stash,ogd,ExtUtils::MakeMaker",
+                    long_doc  => "Specify a list of modules to find the "
+                      . "distribution for and package it. You can specify more "
+                      . "than one by either using --modules several times or "
+                      . "separating module names by ','.\n\n"
+                      . "For example: Package::Stash,ogd,ExtUtils::MakeMaker",
                   );
 
 option categories => (
-                       is        => "lazy",
-                       format    => 's@',
-                       required  => 0,
-                       autosplit => ",",
-                       doc       => "Specify list of categories",
-		       long_doc  => "Specify list of categories where the packages " .
-				    "should be created for. The first category is " .
-				    "always the primary one.\n\n" .
-				    "You can specify categories dedicate per module " .
-				    "by putting the module name in brackets after the " .
-				    "category name. Dedicated categories are always " .
-				    "prepended.\n\n" .
-				    "Example: --categories perl5 --modules Sys::Filesystem --categories " .
-				    "\"sysutils(Sys::Filesystem),filesystems(Sys::Filesystem)\" --modules Moo " .
-				    "\"devel(Moo)\"",
+                     is        => "lazy",
+                     format    => 's@',
+                     required  => 0,
+                     autosplit => ",",
+                     doc       => "Specify list of categories",
+                     long_doc  => "Specify list of categories where the packages "
+                       . "should be created for. The first category is "
+                       . "always the primary one.\n\n"
+                       . "You can specify categories dedicate per module "
+                       . "by putting the module name in brackets after the "
+                       . "category name. Dedicated categories are always "
+                       . "prepended.\n\n"
+                       . "Example: --categories perl5 --modules Sys::Filesystem --categories "
+                       . "\"sysutils(Sys::Filesystem),filesystems(Sys::Filesystem)\" --modules Moo "
+                       . "\"devel(Moo)\"",
                      );
 
 has output => ( is => "rw" );

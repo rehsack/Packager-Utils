@@ -16,11 +16,11 @@ option modules => (
                     required  => 1,
                     autosplit => ",",
                     doc       => "Specify list of modules to resolve to distributions",
-		    long_doc  => "Specify a list of modules to find the " .
-		                 "distribution for and package it. You can specify more " .
-				 "than one by either using --modules several times or " .
-				 "separating module names by ','.\n\n" .
-				 "For example: Package::Stash,ogd,ExtUtils::MakeMaker",
+                    long_doc  => "Specify a list of modules to find the "
+                      . "distribution for and package it. You can specify more "
+                      . "than one by either using --modules several times or "
+                      . "separating module names by ','.\n\n"
+                      . "For example: Package::Stash,ogd,ExtUtils::MakeMaker",
                   );
 
 with "Packager::Utils::Role::Upstream", "Packager::Utils::Role::Packages",
