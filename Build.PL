@@ -28,8 +28,8 @@ my $builder = Module::Build->new(
         'File::Spec'             => 0,
         'Hash::MoreUtils'        => '0.04',
         'List::MoreUtils'        => '0.04',
-        'MooX::Cmd'              => 0,
-        'MooX::Options'          => 0,
+        'MooX::Cmd'              => '0.007',
+        'MooX::Options'          => '3.99',
         'MooX::ConfigFromFile'   => 0,
         'MooX::Roles::Pluggable' => 0,
         # for deploying
