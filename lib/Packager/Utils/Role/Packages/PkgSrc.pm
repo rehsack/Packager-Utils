@@ -3,10 +3,11 @@ package Packager::Utils::Role::Packages::PkgSrc;
 use Moo::Role;
 use MooX::Options;
 
+use Alien::Packages::Pkg_Info::pkgsrc ();
 use Carp qw(carp croak);
 use Carp::Assert qw(affirm);
 use Cwd qw();
-use File::Basename qw(fileparse);
+use File::Basename qw(dirname fileparse);
 use File::Spec qw();
 use File::Find::Rule qw(find);
 use File::pushd;
@@ -42,23 +43,38 @@ sub _build_pkgsrc_base_dir
           and return Cwd::abs_path($dir);
     }
 
+    $self->options_usage( 1, "Unable to guess pkgsrc base dir" );
+
     return;
 }
 
 # XXX guess that using Alien::Packags
 option 'pkgsrc_prefix' => (
-                            is     => "ro",
-                            format => "s",
-                            doc    => "Specify prefix directory of pkgsrc binaries",
+                            is        => "lazy",
+                            format    => "s",
+                            predicate => 1,
+                            doc       => "Specify prefix directory of pkgsrc binaries",
                           );
 
-has pkg_info_cmd => ( is => "lazy" );
-has bmake_cmd    => ( is => "lazy" );
+sub _build_pkgsrc_prefix
+{
+    my $self = shift;
+    my ( $name, $path, $suffix ) = fileparse( $self->pkg_info_cmd );
+    dirname($path);
+}
+
+has pkg_info_cmd => (
+                      is        => "lazy",
+                      predicate => 1
+                    );
+has bmake_cmd => ( is => "lazy" );
 
 sub _build_pkg_info_cmd
 {
     my $self = shift;
-    File::Spec->catfile( $self->pkgsrc_prefix, "sbin", "pkg_info" );
+    $self->has_pkgsrc_prefix
+      and return File::Spec->catfile( $self->pkgsrc_prefix, "sbin", "pkg_info" );
+    return Alien::Packages::Pkg_Info::pkgsrc::usable();
 }
 
 sub _build_bmake_cmd

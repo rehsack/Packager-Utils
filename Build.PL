@@ -20,6 +20,7 @@ my $builder = Module::Build->new(
                           },
     requires => {
         'perl'                   => 5.012,
+	'Alien::Packages'        => '0.003',
         'Module::CoreList'       => 0,
         'File::Basename'         => 0,
         'File::ShareDir'         => '1.03',
