@@ -5,6 +5,7 @@ use MooX::Options;
 
 use MetaCPAN::API ();
 
+use Carp qw/croak/;
 use CPAN;
 use CPAN::DistnameInfo;
 use Module::CoreList;
