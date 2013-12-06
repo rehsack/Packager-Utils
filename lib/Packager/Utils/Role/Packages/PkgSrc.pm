@@ -22,14 +22,21 @@ use File::Find::Rule::Age;
 our $VERSION = '0.001';
 
 option 'pkgsrc_base_dir' => (
-                              is       => "lazy",
-                              format   => "s",
-                              doc      => "Specify base directory of pkgsrc",
-                              long_doc => "Can be used to specify or "
-                                . "override the base directory for "
-                                . "pkgsrc packages.\n\nExamples: "
-                                . "--pkgsrc-base-dir /home/user/pkgscr",
-                            );
+    is     => "lazy",
+    format => "s",
+    coerce => sub {
+        defined $_[0] or die "pkgsrc_base_dir must be defined";
+        -d $_[0] or die "$_[0]: $!";
+        my $bsd_pkg_mk = File::Spec->catfile( $_[0], "mk", "bsd.pkg.mk" );
+        -f $bsd_pkg_mk or die "$bsd_pkg_mk: $!";
+        return Cwd::abs_path( $_[0] );
+    },
+    doc      => "Specify base directory of pkgsrc",
+    long_doc => "Can be used to specify or "
+      . "override the base directory for "
+      . "pkgsrc packages.\n\nExamples: "
+      . "--pkgsrc-base-dir /home/user/pkgscr",
+);
 
 sub _build_pkgsrc_base_dir
 {
@@ -40,7 +47,7 @@ sub _build_pkgsrc_base_dir
     {
         -d $dir
           and -f File::Spec->catfile( $dir, "mk", "bsd.pkg.mk" )
-          and return Cwd::abs_path($dir);
+          and return $dir;
     }
 
     $self->options_usage( 1, "Unable to guess pkgsrc base dir" );
