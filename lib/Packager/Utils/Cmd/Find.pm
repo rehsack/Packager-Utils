@@ -12,10 +12,7 @@ use MooX::Options with_config_from_file => 1;
 
 sub execute
 {
-    my ($self) = @_;
-
-    die "Need to specify a sub-command: "
-      . join( ", ", sort keys %{ $self->command_commands } ) . "!\n";
+    shift->options_usage();
 }
 
 =head1 AUTHOR
