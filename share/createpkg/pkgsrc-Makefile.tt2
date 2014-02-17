@@ -1,5 +1,4 @@
 # $NetBSD$
-#
 
 [% MACRO BUILD_DEP(t,req)
    BLOCK;
