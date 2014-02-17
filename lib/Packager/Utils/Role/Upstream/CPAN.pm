@@ -62,6 +62,7 @@ around "init_upstream" => sub {
     $self->$next(@_) or return;
 
     my $cpan_home = $self->cpan_home;
+    Module::CoreList->find_version( $] ) or die "Module::CoreList needs to be updated to support Perl $]";
 
     if ( defined($cpan_home) and -e File::Spec->catfile( $cpan_home, 'CPAN', 'MyConfig.pm' ) )
     {
@@ -202,8 +203,11 @@ around get_distribution_for_module => sub {
             defined $mod_version and $mod_version and push( @mc_qry, $mod_version );
             my $first_core = Module::CoreList->first_release(@mc_qry);
             $first_core or next;
-            # XXX make 5.18.1 from 5.018001
+	    $first_core > $] and next;
             my ($perl_pkg) = grep { $_->{PKG_NAME} eq "perl" } values %{ $pkgs->{$pkg_type} };
+	    $first_core = version->parse($first_core)->normal;
+	    $first_core =~ s/^v//;
+	    $first_core = join(".", grep { defined $_ and $_ } (map { $_ =~ s/^0*//; $_ } split(qr/\./, $first_core)));
             push @found, { %$perl_pkg, DIST_VERSION => $first_core };
         }
     }
