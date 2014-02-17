@@ -9,6 +9,7 @@ use Carp qw/croak/;
 use CPAN;
 use CPAN::DistnameInfo;
 use Module::CoreList;
+use Hash::MoreUtils qw(slice_def);
 
 our $VERSION = '0.001';
 
@@ -62,7 +63,8 @@ around "init_upstream" => sub {
     $self->$next(@_) or return;
 
     my $cpan_home = $self->cpan_home;
-    Module::CoreList->find_version( $] ) or die "Module::CoreList needs to be updated to support Perl $]";
+    Module::CoreList->find_version($])
+      or die "Module::CoreList needs to be updated to support Perl $]";
 
     if ( defined($cpan_home) and -e File::Spec->catfile( $cpan_home, 'CPAN', 'MyConfig.pm' ) )
     {
@@ -203,12 +205,21 @@ around get_distribution_for_module => sub {
             defined $mod_version and $mod_version and push( @mc_qry, $mod_version );
             my $first_core = Module::CoreList->first_release(@mc_qry);
             $first_core or next;
-	    $first_core > $] and next;
             my ($perl_pkg) = grep { $_->{PKG_NAME} eq "perl" } values %{ $pkgs->{$pkg_type} };
-	    $first_core = version->parse($first_core)->normal;
-	    $first_core =~ s/^v//;
-	    $first_core = join(".", grep { defined $_ and $_ } (map { $_ =~ s/^0*//; $_ } split(qr/\./, $first_core)));
-            push @found, { %$perl_pkg, DIST_VERSION => $first_core };
+            my %vers_info = slice_def(
+                                       {DIST_VERSION => $first_core,
+                                       LAST_VERSION => Module::CoreList->removed_from($module),
+                                       DEPR_VERSION => Module::CoreList->deprecated_in($module)}
+                                     );
+            foreach my $vin ( keys %vers_info )
+            {
+                ( my $v = version->parse( $vers_info{$vin} )->normal ) =~ s/^v//;
+                $v = join( ".",
+                           grep { defined $_ and $_ }
+                             ( map { $_ =~ s/^0*//; $_ } split( qr/\./, $v ) ) );
+                $vers_info{$vin} = $v;
+            }
+            push @found, { %$perl_pkg, %vers_info };
         }
     }
 
