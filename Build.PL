@@ -20,7 +20,7 @@ my $builder = Module::Build->new(
                           },
     requires => {
         'perl'                   => 5.012,
-	'Alien::Packages'        => '0.003',
+        'Alien::Packages'        => '0.003',
         'Module::CoreList'       => 0,
         'File::Basename'         => 0,
         'File::ShareDir'         => '1.03',
@@ -33,6 +33,9 @@ my $builder = Module::Build->new(
         'MooX::Options'          => '4.000',
         'MooX::ConfigFromFile'   => 0,
         'MooX::Roles::Pluggable' => 0,
+        # for general asynchronous operations
+        'IO::Async'      => '0.61',
+        'Unix::Statgrab' => '0.102',
         # for deploying
         'SQL::Translator' => 0,
         # cache support (currently built-in!)
@@ -58,9 +61,25 @@ my $builder = Module::Build->new(
                    dist => [ 'share', ],
                  },
     meta_merge => {
-                    resources => {
-                                   repository => "https://github.com/rehsack/Packager-Utils",
+                    'meta-spec' => { version => 2 },
+                    resources   => {
+                                   repository => {
+                                               url => 'git://github.com/rehsack/Packager-Utils.git',
+                                               web => 'https://github.com/rehsack/Packager-Utils',
+                                               type => 'git',
+                                   },
                                  },
+                    prereqs => {
+                                 develop => {
+                                              requires => {
+                                                         'Test::CPAN::Changes'                 => 0,
+                                                         'Test::CheckManifest'                 => 0,
+                                                         'Test::Pod'                           => 0,
+                                                         'Test::Pod::Coverage'                 => 0,
+                                                         'Test::Pod::Spelling::CommonMistakes' => 0,
+                                              },
+                                            },
+                               },
                   },
     test_files     => [ "t/*.t", "xt/*.t" ],
     add_to_cleanup => ['Packager-Utils-*'],
