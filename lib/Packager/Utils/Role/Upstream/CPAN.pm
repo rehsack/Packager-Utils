@@ -206,11 +206,16 @@ around get_distribution_for_module => sub {
             my $first_core = Module::CoreList->first_release(@mc_qry);
             $first_core or next;
             my ($perl_pkg) = grep { $_->{PKG_NAME} eq "perl" } values %{ $pkgs->{$pkg_type} };
+            my $last_core = Module::CoreList->removed_from($module);
+            my $depr_core = Module::CoreList->deprecated_in($module);
             my %vers_info = slice_def(
-                                       {DIST_VERSION => $first_core,
-                                       LAST_VERSION => Module::CoreList->removed_from($module),
-                                       DEPR_VERSION => Module::CoreList->deprecated_in($module)}
+                                       {
+                                         DIST_VERSION => $first_core,
+                                         LAST_VERSION => $last_core,
+                                         DEPR_VERSION => $depr_core,
+                                       }
                                      );
+
             foreach my $vin ( keys %vers_info )
             {
                 ( my $v = version->parse( $vers_info{$vin} )->normal ) =~ s/^v//;
