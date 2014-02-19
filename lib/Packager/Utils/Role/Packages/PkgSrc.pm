@@ -15,9 +15,12 @@ use IO::CaptureOutput qw(capture_exec);
 use List::MoreUtils qw(zip);
 use Text::Glob qw(match_glob);
 use Text::Wrap qw(wrap);
+use Unix::Statgrab qw();
 
 # make it optional - with cache only ...
 use File::Find::Rule::Age;
+
+with "Packager::Utils::Role::Async";
 
 our $VERSION = '0.001';
 
@@ -142,15 +145,31 @@ around "_build_packages" => sub {
 
     @pkg_dirs or return $packaged;
     $self->cache_modified(time);
+    my $max_procs = Unix::Statgrab::get_host_info()->ncpus(0) * 4;
+    my $pds = 0;
 
     foreach my $pkg_dir (@pkg_dirs)
     {
         # XXX File::Find::Rule extension ...
         -f File::Spec->catfile( $pkg_dir, "Makefile" ) or next;
-        my $pkg_det = $self->_fetch_full_pkg_details($pkg_dir);
-        $pkg_det or next;
-        $packaged->{pkgsrc}->{ $pkg_det->{PKG_LOCATION} } = $pkg_det;
+	++$pds;
+        $self->_fetch_full_pkg_details(
+            $pkg_dir,
+            sub {
+                my $pkg_det = shift;
+		--$pds;
+                $pkg_det and $packaged->{pkgsrc}->{ $pkg_det->{PKG_LOCATION} } = $pkg_det;
+            }
+        );
+        do {
+	    $self->loop->loop_once(0);
+	} while($pds > $max_procs);
     }
+
+    do
+    {
+        $self->loop->loop_once(undef);
+    } while ( $pds );
 
     return $packaged;
 };
@@ -169,31 +188,77 @@ has '_pkg_var_names' => (
 
 sub _get_pkg_vars
 {
-    my ( $self, $pkg_loc, $varnames ) = @_;
+    my ( $self, $pkg_loc, $varnames, $cb ) = @_;
     $varnames or $varnames = $self->_pkg_var_names;
     my $varnames_str = join( " ", @$varnames );
     File::Spec->file_name_is_absolute($pkg_loc)
       or $pkg_loc = File::Spec->catdir( $self->pkgsrc_base_dir, $pkg_loc );
     my $last_dir = pushd($pkg_loc);
-    my ( $stdout, $stderr, $success, $exit_code ) =
-      capture_exec( $self->bmake_cmd, "show-vars", "VARNAMES=$varnames_str" );
-    if ( $success and 0 == $exit_code )
-    {
-        chomp $stdout;
-        my @vals = split( "\n", $stdout );
-        return zip( @$varnames, @vals );
-    }
-    die $stderr;
+
+    my ( $stdout, $stderr );
+    my %proc_cfg = (
+        command => [ $self->bmake_cmd, "show-vars", "VARNAMES=$varnames_str" ],
+        stdout  => {
+            on_read => sub {
+                my ( $stream, $buffref ) = @_;
+                $stdout .= $$buffref;
+                $$buffref = "";
+                return 0;
+            },
+        },
+        stderr => {
+            on_read => sub {
+                my ( $stream, $buffref ) = @_;
+                $stderr .= $$buffref;
+                $$buffref = "";
+                return 0;
+            },
+        },
+        on_finish => sub {
+            my ( $proc, $exitcode ) = @_;
+            if ( $exitcode != 0 )
+            {
+                warn $stderr;
+                return $cb->();
+            }
+            chomp $stdout;
+            my @vals = split( "\n", $stdout );
+            my %varnames = zip( @$varnames, @vals );
+            $cb->( \%varnames );
+        },
+        on_exception => sub {
+            my ( $exception, $errno, $exitcode ) = @_;
+            $exception and die $exception;
+            die $self->bmake_cmd . " died with (exit=$exitcode): " . $stderr;
+        },
+    );
+
+    my $process = IO::Async::Process->new(%proc_cfg);
+    do {
+	$self->loop->loop_once(0);
+	eval { $self->loop->add($process);};
+    } while($@);
+
+    return;
+}
+
+sub _get_pkg_vars_s
+{
+    my ( $self, $pkg_loc, $varnames ) = @_;
+    my %pkg_vars;
+    _get_pkg_vars( $self, $pkg_loc, $varnames, sub { %pkg_vars = %{ $_[0] }; $self->loop->stop; } );
+    return %pkg_vars;
 }
 
 sub _fetch_full_pkg_details
 {
-    my ( $self, $pkg_loc ) = @_;
+    my ( $self, $pkg_loc, $cb ) = @_;
 
-    my %pkg_details;
-    eval {
-        my %pkg_vars = $self->_get_pkg_vars($pkg_loc);
-
+    my $eval_pkg_vars = sub {
+        my %pkg_vars;
+        defined $_[0] and "HASH" eq ref $_[0] and %pkg_vars = %{ $_[0] };
+        defined $pkg_vars{DISTNAME} or return $cb->();
+        my %pkg_details;
         my $distver;
         if ( $pkg_vars{DISTNAME} =~ m/^(.*)-(v?[0-9].*?)$/ )
         {
@@ -218,10 +283,11 @@ sub _fetch_full_pkg_details
         $pkg_details{PKG_HOMEPAGE}     = $pkg_vars{HOMEPAGE};
         $pkg_details{PKG_LICENSE}      = $pkg_vars{LICENSE};
         $pkg_details{PKG_MASTER_SITES} = $pkg_vars{MASTER_SITES};
-    };
-    $@ and carp("$pkg_loc -- $@\n") and return;
 
-    return \%pkg_details;
+        $cb->( \%pkg_details );
+    };
+
+    return $self->_get_pkg_vars( $pkg_loc, $self->_pkg_var_names, $eval_pkg_vars );
 }
 
 my %cpan2pkg_licenses = (
@@ -261,7 +327,8 @@ sub _create_pkgsrc_p5_package_info
       and $pkg_det = $pkg_det->{cpan}->{ $minfo->{PKG4MOD} }->[0];    # deref search result
     $pkg_det
       and $pkg_det->{PKG_LOCATION}
-      and $pkg_det = { %$pkg_det, $self->_get_pkg_vars( $pkg_det->{PKG_LOCATION}, $pkg_tpl_vars ) };
+      and $pkg_det =
+      { %$pkg_det, $self->_get_pkg_vars_s( $pkg_det->{PKG_LOCATION}, $pkg_tpl_vars ) };
           $pkg_det
       and $pkg_det->{SVR4_PKGNAME}
       and index( $pkg_det->{SVR4_PKGNAME}, $pkg_det->{PKG_NAME} ) != -1
