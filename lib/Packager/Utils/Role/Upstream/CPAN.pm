@@ -372,8 +372,8 @@ around "create_module_info" => sub {
 
     $dist->{metadata}->{x_breaks} and $minfo->{CONFLICTS} = $dist->{metadata}->{x_breaks};
     $dist->{metadata}->{generated_by}
-      and $dist->{metadata}->{generated_by} =~ m/^(.*) version/
-      and $minfo->{GENERATOR} = $1;
+      and $dist->{metadata}->{generated_by} =~ m/^(.*?) version/
+      and $minfo->{cpan}->{GENERATOR} = $1;
 
     return $minfo;
 };
