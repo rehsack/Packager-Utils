@@ -28,11 +28,12 @@ my $builder = Module::Build->new(
         'File::Path'             => '2.00',
         'File::Spec'             => 0,
         'Hash::MoreUtils'        => '0.04',
-        'List::MoreUtils'        => '0.04',
+        'List::MoreUtils'        => '0.22',
         'MooX::Cmd'              => '0.007',
         'MooX::Options'          => '4.000',
         'MooX::ConfigFromFile'   => 0,
         'MooX::Roles::Pluggable' => 0,
+	'Params::Util'           => '0.37',
         # for general asynchronous operations
         'IO::Async'      => '0.61',
         'Unix::Statgrab' => '0.102',

@@ -3,6 +3,8 @@ package Packager::Utils::Role::Packages::PkgSrc;
 use Moo::Role;
 use MooX::Options;
 
+use v5.12;
+
 use Alien::Packages::Pkg_Info::pkgsrc ();
 use Carp qw(carp croak);
 use Carp::Assert qw(affirm);
@@ -13,6 +15,7 @@ use File::Find::Rule qw(find);
 use File::pushd;
 use IO::CaptureOutput qw(capture_exec);
 use List::MoreUtils qw(zip);
+use Params::Util qw(_ARRAY _ARRAY0 _HASH _HASH0);
 use Text::Glob qw(match_glob);
 use Text::Wrap qw(wrap);
 use Unix::Statgrab qw();
@@ -158,7 +161,7 @@ around "_build_packages" => sub {
             sub {
                 my $pkg_det = shift;
 		--$pds;
-                $pkg_det and $packaged->{pkgsrc}->{ $pkg_det->{PKG_LOCATION} } = $pkg_det;
+                _HASH($pkg_det) and $packaged->{pkgsrc}->{ $pkg_det->{PKG_LOCATION} } = $pkg_det;
             }
         );
         do {
@@ -256,7 +259,7 @@ sub _fetch_full_pkg_details
 
     my $eval_pkg_vars = sub {
         my %pkg_vars;
-        defined $_[0] and "HASH" eq ref $_[0] and %pkg_vars = %{ $_[0] };
+        _HASH( $_[0] ) and %pkg_vars = %{ $_[0] };
         defined $pkg_vars{DISTNAME} or return $cb->();
         my %pkg_details;
         my $distver;
@@ -344,7 +347,7 @@ sub _create_pkgsrc_p5_package_info
                     $cpan2pkg_licenses{$_}
                   ? $cpan2pkg_licenses{$_}
                   : "unknown($_)"
-              } @{ $minfo->{PKG_LICENSE} }
+              } @{ _ARRAY($minfo->{PKG_LICENSE}) // [$minfo->{PKG_LICENSE}]}
         ),
         HOMEPAGE   => 'https://metacpan.org/release/' . $minfo->{DIST},
         MAINTAINER => 'pkgsrc-users@NetBSD.org',
@@ -425,6 +428,10 @@ sub _create_pkgsrc_p5_package_info
         ( defined $req->{CORE_NAME} )
           and !$req->{REQ_VERSION}
           and next;    # -[0-9]* and in core means core is enough
+
+        $minfo->{GENERATOR}
+          and $minfo->{GENERATOR} eq 'Module::Build::Tiny'
+          and $pinfo->{EXTRA_VARS}->{PERL5_MODULE_TYPE} = 'Module::Build::Tiny';
 
         $minfo->{GENERATOR}
           and $minfo->{GENERATOR} eq 'Module::Build'
