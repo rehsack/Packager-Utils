@@ -53,9 +53,9 @@ END -%]
 # CONFLICTS+=	[% req.PKG_NAME %]<[% req.REQ_VERSION %]
 [% END; END -%]
 
-[%- FOREACH extra IN EXTRA_VARS; %]
-[% extra.key %]=	[% extra.value -%]
-[% END %]
+[%- FOREACH extra IN EXTRA_VARS;
+    extra.key %]=	[% extra.value %]
+[% END -%]
 
 [%- FOREACH line IN INCLUDES; %]
 .include "[% line %]"
