@@ -456,9 +456,6 @@ sub _create_pkgsrc_p5_package_info
         $dep->{phase} eq 'configure'
           and $dep->{relationship} eq 'requires'
           and $bldreq{ $req->{PKG_NAME} } = $req;
-        $dep->{phase} eq 'develop'
-          and $dep->{relationship} eq 'requires'
-          and $bldreq{ $req->{PKG_NAME} } = $req;
         $dep->{phase} eq 'test'
           and $dep->{relationship} eq 'requires'
           and $bldreq{ $req->{PKG_NAME} } = $req;
@@ -466,17 +463,11 @@ sub _create_pkgsrc_p5_package_info
         $dep->{phase} eq 'configure'
           and $dep->{relationship} eq 'recommends'
           and $bldrec{ $req->{PKG_NAME} } = $req;
-        $dep->{phase} eq 'develop'
-          and $dep->{relationship} eq 'recommends'
-          and $bldrec{ $req->{PKG_NAME} } = $req;
         $dep->{phase} eq 'test'
           and $dep->{relationship} eq 'recommends'
           and $bldrec{ $req->{PKG_NAME} } = $req;
 
         $dep->{phase} eq 'configure'
-          and $dep->{relationship} eq 'conflicts'
-          and $bldcon{ $req->{PKG_NAME} } = $req;
-        $dep->{phase} eq 'develop'
           and $dep->{relationship} eq 'conflicts'
           and $bldcon{ $req->{PKG_NAME} } = $req;
         $dep->{phase} eq 'test'
