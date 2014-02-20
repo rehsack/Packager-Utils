@@ -10,8 +10,9 @@ use Carp qw(carp croak);
 use Carp::Assert qw(affirm);
 use Cwd qw();
 use File::Basename qw(dirname fileparse);
-use File::Spec qw();
 use File::Find::Rule qw(find);
+use File::Slurp qw(read_file);
+use File::Spec qw();
 use File::pushd;
 use IO::CaptureOutput qw(capture_exec);
 use List::MoreUtils qw(zip);
@@ -149,30 +150,31 @@ around "_build_packages" => sub {
     @pkg_dirs or return $packaged;
     $self->cache_modified(time);
     my $max_procs = Unix::Statgrab::get_host_info()->ncpus(0) * 4;
-    my $pds = 0;
+    my $pds       = 0;
 
     foreach my $pkg_dir (@pkg_dirs)
     {
         # XXX File::Find::Rule extension ...
         -f File::Spec->catfile( $pkg_dir, "Makefile" ) or next;
-	++$pds;
+        ++$pds;
         $self->_fetch_full_pkg_details(
             $pkg_dir,
             sub {
                 my $pkg_det = shift;
-		--$pds;
+                --$pds;
                 _HASH($pkg_det) and $packaged->{pkgsrc}->{ $pkg_det->{PKG_LOCATION} } = $pkg_det;
             }
         );
-        do {
-	    $self->loop->loop_once(0);
-	} while($pds > $max_procs);
+        do
+        {
+            $self->loop->loop_once(0);
+        } while ( $pds > $max_procs );
     }
 
     do
     {
         $self->loop->loop_once(undef);
-    } while ( $pds );
+    } while ($pds);
 
     return $packaged;
 };
@@ -237,10 +239,11 @@ sub _get_pkg_vars
     );
 
     my $process = IO::Async::Process->new(%proc_cfg);
-    do {
-	$self->loop->loop_once(0);
-	eval { $self->loop->add($process);};
-    } while($@);
+    do
+    {
+        $self->loop->loop_once(0);
+        eval { $self->loop->add($process); };
+    } while ($@);
 
     return;
 }
@@ -271,6 +274,7 @@ sub _fetch_full_pkg_details
 
         my $pkgsrcdir = $self->pkgsrc_base_dir();
 
+        # XXX slice_def_map
         $pkg_details{DIST_NAME}    = $pkg_vars{DISTNAME};
         $pkg_details{DIST_VERSION} = $distver;
         $pkg_details{DIST_FILE}    = $pkg_vars{DISTFILES};
@@ -291,6 +295,23 @@ sub _fetch_full_pkg_details
     };
 
     return $self->_get_pkg_vars( $pkg_loc, $self->_pkg_var_names, $eval_pkg_vars );
+}
+
+sub _get_extra_pkg_details
+{
+    my ( $self, $pkg_loc, @patterns ) = @_;
+    File::Spec->file_name_is_absolute($pkg_loc)
+      or $pkg_loc = File::Spec->catdir( $self->pkgsrc_base_dir, $pkg_loc );
+    my @lines = read_file( File::Spec->catfile( $pkg_loc, "Makefile" ) );
+    my @result;
+
+    foreach my $pattern (@patterns)
+    {
+        my @match = grep { $_ =~ m/$pattern/ } @lines;
+        push @result, \@match;
+    }
+
+    return @result;
 }
 
 my %cpan2pkg_licenses = (
@@ -321,9 +342,9 @@ sub _create_pkgsrc_p5_package_info
     my ( $self, $minfo, $pkg_det ) = @_;
 
     my $pkgsrc_base = $self->pkgsrc_base_dir();
-    my $pkg_tpl_vars = [
-        qw(SVR4_PKGNAME CATEGORIES COMMENT HOMEPAGE LICENSE MAINTAINER CONFLICTS SUPERSEDES USE_LANGUAGES USE_TOOLS)
-    ];
+    my $pkg_tpl_vars =
+      [ qw(SVR4_PKGNAME CATEGORIES COMMENT HOMEPAGE LICENSE MAINTAINER CONFLICTS SUPERSEDES) ];
+
           $pkg_det
       and $minfo->{PKG4MOD}
       and $pkg_det->{cpan}->{ $minfo->{PKG4MOD} }
@@ -337,6 +358,11 @@ sub _create_pkgsrc_p5_package_info
       and index( $pkg_det->{SVR4_PKGNAME}, $pkg_det->{PKG_NAME} ) != -1
       and delete $pkg_det->{SVR4_PKGNAME};
 
+    my @extra_patterns = ( qr/^USE_TOOLS/, qr/^USE_LANGUAGES/, qr/^\.include/, );
+    my @extra_keys     = qw(USE_TOOLS USE_LANGUAGES .include);
+    my @extra_details  = $self->_get_extra_pkg_details( $pkg_det->{PKG_LOCATION}, @extra_patterns );
+    $pkg_det->{extra} = [ zip @extra_keys, @extra_details ];
+
     my $pinfo = {
         PKG_NAME   => "p5-\${DISTNAME}",
         DIST_NAME  => $minfo->{DIST_NAME},
@@ -347,7 +373,7 @@ sub _create_pkgsrc_p5_package_info
                     $cpan2pkg_licenses{$_}
                   ? $cpan2pkg_licenses{$_}
                   : "unknown($_)"
-              } @{ _ARRAY($minfo->{PKG_LICENSE}) // [$minfo->{PKG_LICENSE}]}
+              } @{ _ARRAY( $minfo->{PKG_LICENSE} ) // [ $minfo->{PKG_LICENSE} ] }
         ),
         HOMEPAGE   => 'https://metacpan.org/release/' . $minfo->{DIST},
         MAINTAINER => 'pkgsrc-users@NetBSD.org',
@@ -396,6 +422,18 @@ sub _create_pkgsrc_p5_package_info
 
     # XXX somehow a PKG_LOCATION proposal could be created???
 
+    $minfo->{GENERATOR}
+      and $minfo->{GENERATOR} eq 'Module::Build::Tiny'
+      and $pinfo->{EXTRA_VARS}->{PERL5_MODULE_TYPE} = 'Module::Build::Tiny';
+
+    $minfo->{GENERATOR}
+      and $minfo->{GENERATOR} eq 'Module::Build'
+      and $pinfo->{EXTRA_VARS}->{PERL5_MODULE_TYPE} = 'Module::Build';
+
+    $minfo->{GENERATOR}
+      and $minfo->{GENERATOR} eq 'Module::Install'
+      and $pinfo->{EXTRA_VARS}->{PERL5_MODULE_TYPE} = 'Module::Install::Bundled';
+
     my ( %bldreq, %bldrec, %rtreq, %rtrec, %bldcon, %rtcon );
     foreach my $dep ( @{ $minfo->{PKG_PREREQ} } )
     {
@@ -428,18 +466,6 @@ sub _create_pkgsrc_p5_package_info
         ( defined $req->{CORE_NAME} )
           and !$req->{REQ_VERSION}
           and next;    # -[0-9]* and in core means core is enough
-
-        $minfo->{GENERATOR}
-          and $minfo->{GENERATOR} eq 'Module::Build::Tiny'
-          and $pinfo->{EXTRA_VARS}->{PERL5_MODULE_TYPE} = 'Module::Build::Tiny';
-
-        $minfo->{GENERATOR}
-          and $minfo->{GENERATOR} eq 'Module::Build'
-          and $pinfo->{EXTRA_VARS}->{PERL5_MODULE_TYPE} = 'Module::Build';
-
-        $minfo->{GENERATOR}
-          and $minfo->{GENERATOR} eq 'Module::Install'
-          and $pinfo->{EXTRA_VARS}->{PERL5_MODULE_TYPE} = 'Module::Install::Bundled';
 
               $req->{PKG_NAME} eq 'Module::Build'
           and $dep->{phase} eq 'configure'
