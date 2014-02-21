@@ -28,6 +28,10 @@ HOMEPAGE=	[% HOMEPAGE %]
 COMMENT=	[% COMMENT %]
 LICENSE=	[% LICENSE %]
 
+[%- IF USE_TOOLS.size; FOREACH ut IN USE_TOOLS; %]
+USE_TOOLS+=	[% ut %]
+[% END; END -%]
+
 [% FOREACH req IN REQUIRES;
 BUILD_DEP('DEPENDS', req);
 END -%]
@@ -53,7 +57,8 @@ END -%]
 # CONFLICTS+=	[% req.PKG_NAME %]<[% req.REQ_VERSION %]
 [% END; END -%]
 
-[%- FOREACH extra IN EXTRA_VARS;
+USE_LANGUAGES=	[% USE_LANGUAGES.join(" ") %]
+[% FOREACH extra IN EXTRA_VARS;
     extra.key %]=	[% extra.value %]
 [% END -%]
 

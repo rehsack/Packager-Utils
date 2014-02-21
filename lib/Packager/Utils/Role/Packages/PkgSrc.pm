@@ -302,7 +302,7 @@ sub _get_extra_pkg_details
     my ( $self, $pkg_loc, @patterns ) = @_;
     File::Spec->file_name_is_absolute($pkg_loc)
       or $pkg_loc = File::Spec->catdir( $self->pkgsrc_base_dir, $pkg_loc );
-    my @lines = read_file( File::Spec->catfile( $pkg_loc, "Makefile" ) );
+    my @lines = read_file( File::Spec->catfile( $pkg_loc, "Makefile" ), chomp => 1 );
     my @result;
 
     foreach my $pattern (@patterns)
@@ -361,7 +361,7 @@ sub _create_pkgsrc_p5_package_info
     my @extra_patterns = ( qr/^USE_TOOLS/, qr/^USE_LANGUAGES/, qr/^\.include/, );
     my @extra_keys     = qw(USE_TOOLS USE_LANGUAGES .include);
     my @extra_details  = $self->_get_extra_pkg_details( $pkg_det->{PKG_LOCATION}, @extra_patterns );
-    $pkg_det->{extra} = [ zip @extra_keys, @extra_details ];
+    $pkg_det->{extra} = { zip @extra_keys, @extra_details };
 
     my $pinfo = {
         PKG_NAME   => "p5-\${DISTNAME}",
@@ -560,7 +560,29 @@ sub _create_pkgsrc_p5_package_info
         push( @{ $pinfo->{$dept} }, sort { $a->{PKG_NAME} cmp $b->{PKG_NAME} } values %$deps );
     }
 
-    push( @{ $pinfo->{INCLUDES} }, "../../lang/perl5/module.mk" );
+    foreach my $ut (@{$pkg_det->{extra}->{USE_TOOLS}})
+    {
+	(my $tool = $ut) =~ s/^\s*USE_TOOLS\W+(\w.*)$/$1/;
+	push @{$pinfo->{USE_TOOLS}}, $tool;
+    }
+
+    foreach my $ul (@{$pkg_det->{extra}->{USE_LANGUAGES}})
+    {
+	(my $lang = $ul) =~ s/^\s*USE_LANGUAGES\W+(\w.*)$/$1/;
+	push @{$pinfo->{USE_LANGUAGES}}, $lang;
+    }
+    _ARRAY($pinfo->{USE_LANGUAGES}) or $pinfo->{USE_LANGUAGES} = ["# empty"];
+
+    foreach my $il (@{$pkg_det->{extra}->{".include"}})
+    {
+	(my $inc = $il) =~ s/^\s*\.include\s+"([^"]+)"$/$1/;
+	$inc eq "../../lang/perl5/module.mk" and next;
+	$inc eq "../../mk/bsd.pkg.mk" and next;
+	grep { $_ eq $inc } @{ $pinfo->{INCLUDES} } and next;
+	push @{ $pinfo->{INCLUDES} }, $inc;
+    }
+
+    push @{ $pinfo->{INCLUDES} }, "../../lang/perl5/module.mk";
 
     return $pinfo;
 }
