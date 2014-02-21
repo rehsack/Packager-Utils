@@ -24,7 +24,7 @@ option modules => (
                   );
 
 with "Packager::Utils::Role::Upstream", "Packager::Utils::Role::Packages",
-  "Packager::Utils::Role::Report", "Packager::Utils::Role::Cache";
+  "Packager::Utils::Role::Report", "Packager::Utils::Role::Cache", "Packager::Utils::Role::Logging";
 
 use Data::Dumper;
 

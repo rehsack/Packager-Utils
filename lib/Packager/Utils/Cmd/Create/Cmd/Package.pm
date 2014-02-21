@@ -46,7 +46,8 @@ has output => ( is => "rw" );
 has target => ( is => "rw" );
 
 with "Packager::Utils::Role::Upstream", "Packager::Utils::Role::Packages",
-  "Packager::Utils::Role::Template", "Packager::Utils::Role::Cache";
+  "Packager::Utils::Role::Template", "Packager::Utils::Role::Cache",
+  "Packager::Utils::Role::Logging";
 
 sub _build_categories { [] }
 

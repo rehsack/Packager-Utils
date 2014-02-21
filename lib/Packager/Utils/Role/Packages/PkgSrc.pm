@@ -24,7 +24,7 @@ use Unix::Statgrab qw();
 # make it optional - with cache only ...
 use File::Find::Rule::Age;
 
-with "Packager::Utils::Role::Async";
+with "Packager::Utils::Role::Async", "MooX::Log::Any";
 
 our $VERSION = '0.001';
 
@@ -223,7 +223,7 @@ sub _get_pkg_vars
             my ( $proc, $exitcode ) = @_;
             if ( $exitcode != 0 )
             {
-                warn $stderr;
+                $self->log->warning($stderr);
                 return $cb->();
             }
             chomp $stdout;
@@ -343,7 +343,7 @@ sub _create_pkgsrc_p5_package_info
 
     my $pkgsrc_base = $self->pkgsrc_base_dir();
     my $pkg_tpl_vars =
-      [ qw(SVR4_PKGNAME CATEGORIES COMMENT HOMEPAGE LICENSE MAINTAINER CONFLICTS SUPERSEDES) ];
+      [qw(SVR4_PKGNAME CATEGORIES COMMENT HOMEPAGE LICENSE MAINTAINER CONFLICTS SUPERSEDES)];
 
           $pkg_det
       and $minfo->{PKG4MOD}
@@ -434,38 +434,59 @@ sub _create_pkgsrc_p5_package_info
       and $minfo->{GENERATOR} eq 'Module::Install'
       and $pinfo->{EXTRA_VARS}->{PERL5_MODULE_TYPE} = 'Module::Install::Bundled';
 
-    my ( %bldreq, %bldrec, %rtreq, %rtrec, %bldcon, %rtcon );
+    my ( %bldreq, %bldrec, %rtreq, %rtrec, %bldcon, %rtcon, @missing );
     foreach my $dep ( @{ $minfo->{PKG_PREREQ} } )
     {
         my $req;
         my $dep_dist = $self->get_distribution_for_module( $dep->{module}, $dep->{version} );
-        my $dep_det =
-             $dep_dist
-          && $dep_dist->{cpan}
-          && $dep_dist->{cpan}->{ $dep->{module} } ? $dep_dist->{cpan}->{ $dep->{module} } : undef;
-        $dep_det
-          or $req = {
-                      PKG_NAME     => $dep->{module},
-                      REQ_VERSION  => $dep->{version},    # XXX numify? -[0-9]*
-                      PKG_LOCATION => 'n/a',
-                    };
-        $dep_det and @{$dep_det} == 1 and $req = {
-            PKG_NAME    => $dep_det->[0]->{PKG_NAME},
-            REQ_VERSION => $dep->{version},          # XXX numify? -[0-9]*, size matters (see M::B)!
-            PKG_LOCATION => $dep_det->[0]->{PKG_LOCATION},
-                                                 };
-        $dep_det and @{$dep_det} > 1 and $req = {
-            PKG_NAME    => $dep_det->[0]->{PKG_NAME},
-            REQ_VERSION => $dep->{version},          # XXX numify? -[0-9]*, size matters (see M::B)!
-            CORE_NAME   => 'perl',                   # XXX find lowest reqd. Perl5 version!
-            CORE_VERSION => $dep_det->[1]->{DIST_VERSION},    # XXX find lowest reqd. Perl5 version!
-            PKG_LOCATION => $dep_det->[0]->{PKG_LOCATION},
-                                                };
+        "perl" eq $dep->{module}
+          and push @{ $pinfo->{EXTRA_VARS}->{PERL5_REQD} }, $dep->{version}
+          and next;
 
-        $req->{PKG_NAME} eq 'perl' and next;                  # core only ...
-        ( defined $req->{CORE_NAME} )
+        if ( $dep_dist && $dep_dist->{cpan} && $dep_dist->{cpan}->{ $dep->{module} } )
+        {
+            my $dep_det = $dep_dist->{cpan}->{ $dep->{module} };
+            $dep_det and @{$dep_det} == 1 and $req = {
+                PKG_NAME => $dep_det->[0]->{PKG_NAME},
+                REQ_VERSION => $dep->{version},    # XXX numify? -[0-9]*, size matters (see M::B)!
+                PKG_LOCATION => $dep_det->[0]->{PKG_LOCATION},
+                                                     };
+            $dep_det and @{$dep_det} > 1 and $req = {
+                PKG_NAME => $dep_det->[0]->{PKG_NAME},
+                REQ_VERSION => $dep->{version},    # XXX numify? -[0-9]*, size matters (see M::B)!
+                CORE_NAME   => 'perl',             # XXX find lowest reqd. Perl5 version!
+                CORE_VERSION => $dep_det->[1]->{DIST_VERSION}
+                ,                                  # XXX find lowest reqd. Perl5 version!
+                (
+                   defined $dep_det->[1]->{LAST_VERSION}
+                   ? ( LAST_VERSION => $dep_det->[1]->{LAST_VERSION} )
+                   : (),
+                ),
+                (
+                   defined $dep_det->[1]->{DEPR_VERSION}
+                   ? ( DEPR_VERSION => $dep_det->[1]->{DEPR_VERSION} )
+                   : (),
+                ),
+                PKG_LOCATION => $dep_det->[0]->{PKG_LOCATION},
+                                                    };
+        }
+        else
+        {
+            push @missing, $req = {
+                                    PKG_NAME     => $dep->{module},
+                                    REQ_VERSION  => $dep->{version},    # XXX numify? -[0-9]*
+                                    PKG_LOCATION => 'n/a',
+                                  };
+            next;
+        }
+
+        # XXX it's not - see TAP::Harness::Env
+        defined $req->{CORE_NAME}
+          and version->parse( $req->{CORE_VERSION} ) <= version->parse($])
           and !$req->{REQ_VERSION}
-          and next;    # -[0-9]* and in core means core is enough
+          and !$req->{LAST_VERSION}
+          and !$req->{DEPR_VERSION}
+          and next;    # -[0-9]* and in core for our version means core is enough
 
               $req->{PKG_NAME} eq 'Module::Build'
           and $dep->{phase} eq 'configure'
@@ -513,6 +534,11 @@ sub _create_pkgsrc_p5_package_info
           and $rtcon{ $req->{PKG_NAME} } = $req;
     }
 
+    foreach my $req (@missing)
+    {
+        $self->log->error("Missing $req->{PKG_NAME} $req->{REQ_VERSION}");
+    }
+
     foreach my $pkg ( keys %rtrec )
     {
         defined $rtreq{$pkg} and $rtreq{$pkg} = delete $rtrec{$pkg};
@@ -553,33 +579,34 @@ sub _create_pkgsrc_p5_package_info
                       @{ $pinfo->{INCLUDES} },
                       File::Spec->catfile( "..", "..", $dep->{PKG_LOCATION}, "buildlink3.mk" )
                     );
-                $dept =~ m/BUILD/ and $pinfo->{EXTRA_VARS}->{"BUILDLINK_DEPMETHOD.$depn"} = 'build';
+                $dept =~ m/BUILD/
+                  and $pinfo->{EXTRA_VARS}->{"BUILDLINK_DEPMETHOD.$depn"} = 'build';
             }
         }
 
         push( @{ $pinfo->{$dept} }, sort { $a->{PKG_NAME} cmp $b->{PKG_NAME} } values %$deps );
     }
 
-    foreach my $ut (@{$pkg_det->{extra}->{USE_TOOLS}})
+    foreach my $ut ( @{ $pkg_det->{extra}->{USE_TOOLS} } )
     {
-	(my $tool = $ut) =~ s/^\s*USE_TOOLS\W+(\w.*)$/$1/;
-	push @{$pinfo->{USE_TOOLS}}, $tool;
+        ( my $tool = $ut ) =~ s/^\s*USE_TOOLS\W+(\w.*)$/$1/;
+        push @{ $pinfo->{USE_TOOLS} }, $tool;
     }
 
-    foreach my $ul (@{$pkg_det->{extra}->{USE_LANGUAGES}})
+    foreach my $ul ( @{ $pkg_det->{extra}->{USE_LANGUAGES} } )
     {
-	(my $lang = $ul) =~ s/^\s*USE_LANGUAGES\W+(\w.*)$/$1/;
-	push @{$pinfo->{USE_LANGUAGES}}, $lang;
+        ( my $lang = $ul ) =~ s/^\s*USE_LANGUAGES\W+(\w.*)$/$1/;
+        push @{ $pinfo->{USE_LANGUAGES} }, $lang;
     }
-    _ARRAY($pinfo->{USE_LANGUAGES}) or $pinfo->{USE_LANGUAGES} = ["# empty"];
+    _ARRAY( $pinfo->{USE_LANGUAGES} ) or $pinfo->{USE_LANGUAGES} = ["# empty"];
 
-    foreach my $il (@{$pkg_det->{extra}->{".include"}})
+    foreach my $il ( @{ $pkg_det->{extra}->{".include"} } )
     {
-	(my $inc = $il) =~ s/^\s*\.include\s+"([^"]+)"$/$1/;
-	$inc eq "../../lang/perl5/module.mk" and next;
-	$inc eq "../../mk/bsd.pkg.mk" and next;
-	grep { $_ eq $inc } @{ $pinfo->{INCLUDES} } and next;
-	push @{ $pinfo->{INCLUDES} }, $inc;
+        ( my $inc = $il ) =~ s/^\s*\.include\s+"([^"]+)"$/$1/;
+        $inc eq "../../lang/perl5/module.mk" and next;
+        $inc eq "../../mk/bsd.pkg.mk"        and next;
+        grep { $_ eq $inc } @{ $pinfo->{INCLUDES} } and next;
+        push @{ $pinfo->{INCLUDES} }, $inc;
     }
 
     push @{ $pinfo->{INCLUDES} }, "../../lang/perl5/module.mk";

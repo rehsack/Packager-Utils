@@ -347,11 +347,12 @@ around "create_module_info" => sub {
     my $module     = shift;
     my $categories = shift;
 
-    my ( $mod, $dist );
+    my ( $mod, $dist, $changes );
     eval {
         my $mcpan = MetaCPAN::API->new();
-        $mod = $mcpan->module($module);
-        $dist = $mcpan->release( distribution => $mod->{distribution} );
+        $mod     = $mcpan->module($module);
+        $dist    = $mcpan->release( distribution => $mod->{distribution} );
+        $changes = $mcpan->fetch( '/changes/' . $mod->{distribution} )->{content};
     };
     $@ and return $minfo;
 

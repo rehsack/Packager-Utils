@@ -3,5 +3,12 @@
 	"dsn" : "dbi:SQLite:dbname=packages.db",
 	"user" : "",
 	"password" : ""
-    }
+    },
+    "log_adapter" : [
+        "Dispatch",
+	"outputs", [
+	    [ "File",   "min_level", "debug", "filename", "pkg_util.log", "newline", 1 ],
+	    [ "Screen", "min_level", "notice", "newline", 1 ],
+	],
+    ]
 }

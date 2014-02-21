@@ -59,8 +59,14 @@ END -%]
 
 USE_LANGUAGES=	[% USE_LANGUAGES.join(" ") %]
 [% FOREACH extra IN EXTRA_VARS;
+     IF extra.value.size;
+       FOREACH eval IN extra.value;
+	 extra.key %]+=	[% eval %]
+[%     END;
+     ELSE;
     extra.key %]=	[% extra.value %]
-[% END -%]
+[%   END;
+   END -%]
 
 [%- FOREACH line IN INCLUDES; %]
 .include "[% line %]"

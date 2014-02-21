@@ -11,7 +11,7 @@ use MooX::Cmd;
 use MooX::Options with_config_from_file => 1;
 
 with "Packager::Utils::Role::Upstream", "Packager::Utils::Role::Packages",
-  "Packager::Utils::Role::Report", "Packager::Utils::Role::Cache";
+  "Packager::Utils::Role::Report", "Packager::Utils::Role::Cache", "Packager::Utils::Role::Logging";
 
 my @pkg_detail_keys = (
                         qw(DIST_NAME DIST_VERSION DIST_FILE PKG_NAME PKG_VERSION),
