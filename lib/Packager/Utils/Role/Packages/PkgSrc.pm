@@ -419,6 +419,7 @@ sub _create_pkgsrc_p5_package_info
     if ( $minfo->{PKG_DESCR} )
     {
         $minfo->{PKG_DESCR} =~ s/^(.*?)\n\n.*/$1/ms;
+        $minfo->{PKG_DESCR} =~ s/\n/ /ms;
         $pinfo->{DESCRIPTION} = wrap( "", "", $minfo->{PKG_DESCR} );
     }
     elsif ( $minfo->{PKG_COMMENT} )
@@ -460,9 +461,10 @@ sub _create_pkgsrc_p5_package_info
         my $req;
         my $dep_dist = $self->get_distribution_for_module( $dep->{module}, $dep->{version} );
         "perl" eq $dep->{module}
-          and push @{ $pinfo->{EXTRA_VARS}->{PERL5_REQD} }, join( ".",
-                           grep { defined $_ and $_ }
-                             ( map { $_ =~ s/^0*//; $_ } split( qr/\./, $dep->{version} ) ) )
+          and push @{ $pinfo->{EXTRA_VARS}->{PERL5_REQD} },
+          join( ".",
+                grep { defined $_ and $_ }
+                  ( map { $_ =~ s/^0*//; $_ } split( qr/\./, $dep->{version} ) ) )
           and next;
 
         if ( $dep_dist && $dep_dist->{cpan} && $dep_dist->{cpan}->{ $dep->{module} } )
@@ -519,12 +521,14 @@ sub _create_pkgsrc_p5_package_info
             next;
         }
 
-        my ($ncver, $cvernm);
-	defined $req->{CORE_NAME}
-	and $ncver = scalar(split(qr/\./, $req->{CORE_VERSION}))
-	and $cvernm = ($ncver <= 2 ? $req->{CORE_VERSION} .(".0" x (3-$ncver)) : $req->{CORE_VERSION}),
-          and version->parse( $cvernm ) <= version->parse($])
-	  and push @{$pinfo->{EXTRA_VARS}->{PERL5_REQD}}, "$req->{CORE_VERSION}	# $dep->{module} >= $dep->{version}"
+        my ( $ncver, $cvernm );
+        defined $req->{CORE_NAME}
+          and $ncver = scalar( split( qr/\./, $req->{CORE_VERSION} ) )
+          and $cvernm =
+          ( $ncver <= 2 ? $req->{CORE_VERSION} . ( ".0" x ( 3 - $ncver ) ) : $req->{CORE_VERSION} ),
+          and version->parse($cvernm) <= version->parse($])
+          and push @{ $pinfo->{EXTRA_VARS}->{PERL5_REQD} },
+          "$req->{CORE_VERSION}	# $dep->{module} >= $dep->{version}"
           and next
           unless ( $req->{LAST_VERSION} or $req->{DEPR_VERSION} );
 
@@ -629,10 +633,13 @@ sub _create_pkgsrc_p5_package_info
 
     if ( $pinfo->{IS_ADDED} )
     {
-        $pinfo->{COMMITMSG} = sprintf( $add_commit_tpl,
-                                       $minfo->{PKG4MOD},  $minfo->{DIST},
-                                       $minfo->{DIST_VER}, $pinfo->{PKG_LOCATION},
-                                       $pinfo->{DESCRIPTION} );
+        $pinfo->{DESCRIPTION} = wrap(
+                                      "", "",
+                                      sprintf( $add_commit_tpl,
+                                               $minfo->{PKG4MOD},  $minfo->{DIST},
+                                               $minfo->{DIST_VER}, $pinfo->{PKG_LOCATION},
+                                               $pinfo->{DESCRIPTION} )
+                                    );
     }
     else
     {
@@ -645,11 +652,15 @@ sub _create_pkgsrc_p5_package_info
         my @releases = grep { $dv < $_->version } $changes->releases;
         $changes->{releases} = {};    # XXX clear_releases
         @releases and $changes->releases(@releases);
-        $pinfo->{COMMITMSG} =
-          sprintf( $updt_commit_tpl,
-                   $minfo->{PKG4MOD},        $minfo->{DIST},         $pkg_det->{DIST_VERSION},
-                   $minfo->{DIST_VER},       $pinfo->{PKG_LOCATION}, $VERSION,
-                   $pkg_det->{DIST_VERSION}, $changes->serialize );
+        $pinfo->{COMMITMSG} = wrap(
+                                    "", "",
+                                    sprintf( $updt_commit_tpl,
+                                             $minfo->{PKG4MOD},        $minfo->{DIST},
+                                             $pkg_det->{DIST_VERSION}, $minfo->{DIST_VER},
+                                             $pinfo->{PKG_LOCATION},   $VERSION,
+                                             $pkg_det->{DIST_VERSION}, $changes->serialize )
+                                  );
+
         foreach my $ut ( @{ $pkg_det->{extra}->{USE_TOOLS} } )
         {
             ( my $tool = $ut ) =~ s/^\s*USE_TOOLS\W+(\w.*)$/$1/;
