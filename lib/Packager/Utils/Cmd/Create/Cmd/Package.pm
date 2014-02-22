@@ -76,14 +76,14 @@ sub execute
     my @categories;
     my %categories;
     my $cat_add = sub {
-	my ($mods, $cat) = @_;
-	my @mods = split(", ", $mods);
-	push( @{ $categories{$_} }, $cat ) for (@mods);
-	1
+        my ( $mods, $cat ) = @_;
+        my @mods = split( ", ", $mods );
+        push( @{ $categories{$_} }, $cat ) for (@mods);
+        1;
     };
     foreach my $category ( @{ $self->categories } )
     {
-        $category =~ m/^([^\(]+)\(([^\)]+)\)$/ and $cat_add->($2, $1) and next;
+        $category =~ m/^([^\(]+)\(([^\)]+)\)$/ and $cat_add->( $2, $1 ) and next;
         push @categories, $category;
     }
 
@@ -96,7 +96,7 @@ sub execute
         my $pkg_det = $self->get_distribution_for_module($module);
         my @mcat    = @categories;
         defined $categories{$module} and unshift( @mcat, @{ $categories{$module} } );
-	# XXX known bug: when it's in core and not packaged, we update perl o.O
+        # XXX known bug: when it's in core and not packaged, we update perl o.O
         my $minfo = $self->create_module_info( $module, \@mcat );
         my $pinfo = $self->create_package_info( $minfo, $pkg_det );
         push( @pkgs, $pinfo );
