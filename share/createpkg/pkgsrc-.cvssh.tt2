@@ -1,0 +1,9 @@
+cd [% ORIGIN %]
+[% GLOBAL.MAKE %] PKG_DEVELOPER=yes fetch distinfo test stage-install clean depends-clean
+cd [% LOCALBASE %]
+[% IF IS_ADDED %]
+cvs add [% PKG_LOCATION %]
+cvs add [% PKG_LOCATION %]/Makefile
+cvs add [% PKG_LOCATION %]/distinfo
+cvs add [% PKG_LOCATION %]/DESCR
+[% END -%]

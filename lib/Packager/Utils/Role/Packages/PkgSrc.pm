@@ -6,6 +6,7 @@ use MooX::Options;
 use v5.12;
 
 use Alien::Packages::Pkg_Info::pkgsrc ();
+use CPAN::Changes qw();
 use Carp qw(carp croak);
 use Carp::Assert qw(affirm);
 use Cwd qw();
@@ -16,7 +17,7 @@ use File::Spec qw();
 use File::pushd;
 use IO::CaptureOutput qw(capture_exec);
 use List::MoreUtils qw(zip);
-use Params::Util qw(_ARRAY _ARRAY0 _HASH _HASH0);
+use Params::Util qw(_ARRAY _ARRAY0 _HASH _HASH0 _STRING);
 use Text::Glob qw(match_glob);
 use Text::Wrap qw(wrap);
 use Unix::Statgrab qw();
@@ -198,7 +199,6 @@ sub _get_pkg_vars
     my $varnames_str = join( " ", @$varnames );
     File::Spec->file_name_is_absolute($pkg_loc)
       or $pkg_loc = File::Spec->catdir( $self->pkgsrc_base_dir, $pkg_loc );
-    my $last_dir = pushd($pkg_loc);
 
     my ( $stdout, $stderr );
     my %proc_cfg = (
@@ -241,6 +241,7 @@ sub _get_pkg_vars
     my $process = IO::Async::Process->new(%proc_cfg);
     do
     {
+        my $last_dir = pushd($pkg_loc);
         $self->loop->loop_once(0);
         eval { $self->loop->add($process); };
     } while ($@);
@@ -307,6 +308,7 @@ sub _get_extra_pkg_details
 
     foreach my $pattern (@patterns)
     {
+        _STRING($pattern) and $pattern = qr/^\Q$pattern\E/;
         my @match = grep { $_ =~ m/$pattern/ } @lines;
         push @result, \@match;
     }
@@ -337,6 +339,22 @@ my %cpan2pkg_licenses = (
                           zlib        => 'zlib',
                         );
 
+my $add_commit_tpl = <<EOACM;
+Adding new package for Perl module %s from CPAN distribution %s version %s into %s
+
+%s
+EOACM
+
+my $updt_commit_tpl = <<EOUCM;
+Updating package for Perl module %s from CPAN distribution %s from %s to %s in %s
+
+PkgSrc changes:
+Generate package using Packager::Utils %s
+
+Upstream changes since %s:
+%s
+EOUCM
+
 sub _create_pkgsrc_p5_package_info
 {
     my ( $self, $minfo, $pkg_det ) = @_;
@@ -358,11 +376,6 @@ sub _create_pkgsrc_p5_package_info
       and index( $pkg_det->{SVR4_PKGNAME}, $pkg_det->{PKG_NAME} ) != -1
       and delete $pkg_det->{SVR4_PKGNAME};
 
-    my @extra_patterns = ( qr/^USE_TOOLS/, qr/^USE_LANGUAGES/, qr/^\.include/, );
-    my @extra_keys     = qw(USE_TOOLS USE_LANGUAGES .include);
-    my @extra_details  = $self->_get_extra_pkg_details( $pkg_det->{PKG_LOCATION}, @extra_patterns );
-    $pkg_det->{extra} = { zip @extra_keys, @extra_details };
-
     my $pinfo = {
         PKG_NAME   => "p5-\${DISTNAME}",
         DIST_NAME  => $minfo->{DIST_NAME},
@@ -379,21 +392,33 @@ sub _create_pkgsrc_p5_package_info
         MAINTAINER => 'pkgsrc-users@NetBSD.org',
         COMMENT    => ucfirst( $minfo->{PKG_COMMENT} ),
         LOCALBASE  => $pkgsrc_base,
+        PKG4MOD    => $minfo->{PKG4MOD},
                 };
 
-    $pinfo->{CATEGORIES} = [qw(devel)]
-      unless ( $pinfo->{CATEGORIES} and @{ $pinfo->{CATEGORIES} } );
+    _ARRAY( $pinfo->{CATEGORIES} ) or $pinfo->{CATEGORIES} = [qw(devel)];
+    push @{ $pinfo->{CATEGORIES} }, qw(perl5)
+      unless grep { "perl5" eq $_ } @{ $pinfo->{CATEGORIES} };
+
+    foreach my $keepvar (qw(SVR4_PKGNAME PKG_LOCATION))
+    {
+        defined $pkg_det->{$keepvar} and $pinfo->{$keepvar} = $pkg_det->{$keepvar};
+    }
+
     $minfo->{DIST_URL} =~ m|authors/id/(\w/\w\w/[^/]+)|
       and $pinfo->{MASTER_SITES} = '${MASTER_SITE_PERL_CPAN:=../../authors/id/' . $1 . '/}',
       $pkg_det
-      and $pkg_det->{PKG_LOCATION}
-      and $pinfo->{ORIGIN} = File::Spec->catdir( $pkgsrc_base, $pkg_det->{PKG_LOCATION} );
-    $pinfo->{ORIGIN}
-      or $pinfo->{ORIGIN} =
-      File::Spec->catdir( $pkgsrc_base, $pinfo->{CATEGORIES}->[0], 'p5-' . $minfo->{DIST} );
+      and $pinfo->{PKG_LOCATION}
+      and $pinfo->{ORIGIN} = File::Spec->catdir( $pkgsrc_base, $pinfo->{PKG_LOCATION} );
+
+    $pinfo->{PKG_LOCATION} =
+          File::Spec->catdir( $pinfo->{CATEGORIES}->[0], 'p5-' . $minfo->{DIST} ),
+      and $pinfo->{ORIGIN} = File::Spec->catdir( $pkgsrc_base, $pinfo->{PKG_LOCATION} )
+      and $pinfo->{IS_ADDED} = $pinfo->{CATEGORIES}->[0]
+      unless $pinfo->{ORIGIN};
 
     if ( $minfo->{PKG_DESCR} )
     {
+        $minfo->{PKG_DESCR} =~ s/^(.*?)\n\n.*/$1/ms;
         $pinfo->{DESCRIPTION} = wrap( "", "", $minfo->{PKG_DESCR} );
     }
     elsif ( $minfo->{PKG_COMMENT} )
@@ -411,11 +436,6 @@ sub _create_pkgsrc_p5_package_info
 
     # XXX check MAINTAINER / HOMEPAGE / CATEGORIES
     @{ $pinfo->{CATEGORIES} } or $pinfo->{CATEGORIES} = $pkg_det->{CATEGORIES} if ($pkg_det);
-
-    foreach my $keepvar (qw(SVR4_PKGNAME USE_LANGUAGES USE_TOOLS PKG_LOCATION))
-    {
-        defined $pkg_det->{$keepvar} and $pinfo->{$keepvar} = $pkg_det->{$keepvar};
-    }
 
     $pinfo->{EXTRA_VARS}->{PERL5_PACKLIST} =
       File::Spec->catdir( 'auto', split( '-', $minfo->{DIST} ), '.packlist' );
@@ -440,23 +460,42 @@ sub _create_pkgsrc_p5_package_info
         my $req;
         my $dep_dist = $self->get_distribution_for_module( $dep->{module}, $dep->{version} );
         "perl" eq $dep->{module}
-          and push @{ $pinfo->{EXTRA_VARS}->{PERL5_REQD} }, $dep->{version}
+          and push @{ $pinfo->{EXTRA_VARS}->{PERL5_REQD} }, join( ".",
+                           grep { defined $_ and $_ }
+                             ( map { $_ =~ s/^0*//; $_ } split( qr/\./, $dep->{version} ) ) )
           and next;
 
         if ( $dep_dist && $dep_dist->{cpan} && $dep_dist->{cpan}->{ $dep->{module} } )
         {
             my $dep_det = $dep_dist->{cpan}->{ $dep->{module} };
-            $dep_det and @{$dep_det} == 1 and $req = {
+            $dep_det and @{$dep_det} == 1 and $dep_det->[0]->{PKG_NAME} ne "perl" and $req = {
                 PKG_NAME => $dep_det->[0]->{PKG_NAME},
                 REQ_VERSION => $dep->{version},    # XXX numify? -[0-9]*, size matters (see M::B)!
                 PKG_LOCATION => $dep_det->[0]->{PKG_LOCATION},
-                                                     };
+                                                                                             };
+            $dep_det and @{$dep_det} == 1 and $dep_det->[0]->{PKG_NAME} eq "perl" and $req = {
+                PKG_NAME  => $dep_det->[0]->{PKG_NAME},
+                CORE_NAME => $dep_det->[0]->{PKG_NAME},
+                CORE_VERSION => $dep->{version},    # XXX numify? -[0-9]*, size matters (see M::B)!
+                PKG_LOCATION => $dep_det->[0]->{PKG_LOCATION},
+                (
+                   defined $dep_det->[0]->{LAST_VERSION}
+                   ? ( LAST_VERSION => $dep_det->[0]->{LAST_VERSION} )
+                   : (),
+                ),
+                (
+                   defined $dep_det->[0]->{DEPR_VERSION}
+                   ? ( DEPR_VERSION => $dep_det->[0]->{DEPR_VERSION} )
+                   : (),
+                ),
+            };
+
             $dep_det and @{$dep_det} > 1 and $req = {
                 PKG_NAME => $dep_det->[0]->{PKG_NAME},
                 REQ_VERSION => $dep->{version},    # XXX numify? -[0-9]*, size matters (see M::B)!
-                CORE_NAME   => 'perl',             # XXX find lowest reqd. Perl5 version!
+                CORE_NAME    => $dep_det->[1]->{PKG_NAME},    # XXX find lowest reqd. Perl5 version!
                 CORE_VERSION => $dep_det->[1]->{DIST_VERSION}
-                ,                                  # XXX find lowest reqd. Perl5 version!
+                ,                                             # XXX find lowest reqd. Perl5 version!
                 (
                    defined $dep_det->[1]->{LAST_VERSION}
                    ? ( LAST_VERSION => $dep_det->[1]->{LAST_VERSION} )
@@ -480,13 +519,14 @@ sub _create_pkgsrc_p5_package_info
             next;
         }
 
-        # XXX it's not - see TAP::Harness::Env
-        defined $req->{CORE_NAME}
-          and version->parse( $req->{CORE_VERSION} ) <= version->parse($])
-          and !$req->{REQ_VERSION}
-          and !$req->{LAST_VERSION}
-          and !$req->{DEPR_VERSION}
-          and next;    # -[0-9]* and in core for our version means core is enough
+        my ($ncver, $cvernm);
+	defined $req->{CORE_NAME}
+	and $ncver = scalar(split(qr/\./, $req->{CORE_VERSION}))
+	and $cvernm = ($ncver <= 2 ? $req->{CORE_VERSION} .(".0" x (3-$ncver)) : $req->{CORE_VERSION}),
+          and version->parse( $cvernm ) <= version->parse($])
+	  and push @{$pinfo->{EXTRA_VARS}->{PERL5_REQD}}, "$req->{CORE_VERSION}	# $dep->{module} >= $dep->{version}"
+          and next
+          unless ( $req->{LAST_VERSION} or $req->{DEPR_VERSION} );
 
               $req->{PKG_NAME} eq 'Module::Build'
           and $dep->{phase} eq 'configure'
@@ -587,29 +627,58 @@ sub _create_pkgsrc_p5_package_info
         push( @{ $pinfo->{$dept} }, sort { $a->{PKG_NAME} cmp $b->{PKG_NAME} } values %$deps );
     }
 
-    foreach my $ut ( @{ $pkg_det->{extra}->{USE_TOOLS} } )
+    if ( $pinfo->{IS_ADDED} )
     {
-        ( my $tool = $ut ) =~ s/^\s*USE_TOOLS\W+(\w.*)$/$1/;
-        push @{ $pinfo->{USE_TOOLS} }, $tool;
+        $pinfo->{COMMITMSG} = sprintf( $add_commit_tpl,
+                                       $minfo->{PKG4MOD},  $minfo->{DIST},
+                                       $minfo->{DIST_VER}, $pinfo->{PKG_LOCATION},
+                                       $pinfo->{DESCRIPTION} );
     }
-
-    foreach my $ul ( @{ $pkg_det->{extra}->{USE_LANGUAGES} } )
+    else
     {
-        ( my $lang = $ul ) =~ s/^\s*USE_LANGUAGES\W+(\w.*)$/$1/;
-        push @{ $pinfo->{USE_LANGUAGES} }, $lang;
-    }
-    _ARRAY( $pinfo->{USE_LANGUAGES} ) or $pinfo->{USE_LANGUAGES} = ["# empty"];
+        my @extra_keys = qw(USE_TOOLS USE_LANGUAGES PKGNAME .include);
+        my @extra_details = $self->_get_extra_pkg_details( $pkg_det->{PKG_LOCATION}, @extra_keys );
+        $pkg_det->{extra} = { zip @extra_keys, @extra_details };
 
-    foreach my $il ( @{ $pkg_det->{extra}->{".include"} } )
-    {
-        ( my $inc = $il ) =~ s/^\s*\.include\s+"([^"]+)"$/$1/;
-        $inc eq "../../lang/perl5/module.mk" and next;
-        $inc eq "../../mk/bsd.pkg.mk"        and next;
-        grep { $_ eq $inc } @{ $pinfo->{INCLUDES} } and next;
-        push @{ $pinfo->{INCLUDES} }, $inc;
+        my $changes  = CPAN::Changes->load_string( $minfo->{PKG_CHANGES} );
+        my $dv       = version->parse( $pkg_det->{DIST_VERSION} );
+        my @releases = grep { $dv < $_->version } $changes->releases;
+        $changes->{releases} = {};    # XXX clear_releases
+        @releases and $changes->releases(@releases);
+        $pinfo->{COMMITMSG} =
+          sprintf( $updt_commit_tpl,
+                   $minfo->{PKG4MOD},        $minfo->{DIST},         $pkg_det->{DIST_VERSION},
+                   $minfo->{DIST_VER},       $pinfo->{PKG_LOCATION}, $VERSION,
+                   $pkg_det->{DIST_VERSION}, $changes->serialize );
+        foreach my $ut ( @{ $pkg_det->{extra}->{USE_TOOLS} } )
+        {
+            ( my $tool = $ut ) =~ s/^\s*USE_TOOLS\W+(\w.*)$/$1/;
+            push @{ $pinfo->{USE_TOOLS} }, $tool;
+        }
+
+        foreach my $ul ( @{ $pkg_det->{extra}->{USE_LANGUAGES} } )
+        {
+            ( my $lang = $ul ) =~ s/^\s*USE_LANGUAGES\W+(\w.*)$/$1/;
+            push @{ $pinfo->{USE_LANGUAGES} }, $lang;
+        }
+        _ARRAY( $pinfo->{USE_LANGUAGES} ) or $pinfo->{USE_LANGUAGES} = ["# empty"];
+
+        foreach my $il ( @{ $pkg_det->{extra}->{".include"} } )
+        {
+            ( my $inc = $il ) =~ s/^\s*\.include\s+"([^"]+)"$/$1/;
+            $inc eq "../../lang/perl5/module.mk" and next;
+            $inc eq "../../mk/bsd.pkg.mk"        and next;
+            grep { $_ eq $inc } @{ $pinfo->{INCLUDES} } and next;
+            push @{ $pinfo->{INCLUDES} }, $inc;
+        }
     }
 
     push @{ $pinfo->{INCLUDES} }, "../../lang/perl5/module.mk";
+
+    $pinfo->{GLOBAL} = {
+                         MAKE            => $self->bmake_cmd,
+                         PKGSRC_BASE_DIR => $self->pkgsrc_base_dir
+                       };
 
     return $pinfo;
 }

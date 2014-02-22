@@ -2,9 +2,7 @@
 
 [% MACRO BUILD_DEP(t,req)
    BLOCK;
-       IF req.CORE_NAME.defined;
-%]# [%  t %]+=	{[% req.CORE_NAME %]>=[% req.CORE_VERSION %],[% req.PKG_NAME %]>=[% req.REQ_VERSION %]}:../../[% req.PKG_LOCATION %]
-[%     ELSIF req.REQ_VERSION;
+       IF req.REQ_VERSION;
        t %]+=	[% req.PKG_NAME %]>=[% req.REQ_VERSION %]:../../[% req.PKG_LOCATION %]
 [%     ELSE;
        t %]+=	[% req.PKG_NAME %]-[0-9]*:../../[% req.PKG_LOCATION %]
