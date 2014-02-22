@@ -8,8 +8,10 @@ use MetaCPAN::API ();
 use Carp qw/croak/;
 use CPAN;
 use CPAN::DistnameInfo;
-use Module::CoreList;
 use Hash::MoreUtils qw(slice_def);
+use Module::CoreList;
+use Pod::Select qw();
+use Pod::Text qw();
 
 our $VERSION = '0.001';
 
@@ -200,7 +202,9 @@ around get_distribution_for_module => sub {
 
         foreach my $pkg_type ( keys %{$pkgs} )
         {
-            push @found, grep { $_->{DIST_NAME} eq $cpan_dist } values %{ $pkgs->{$pkg_type} };
+            push @found,
+              grep { $_->{DIST_NAME} eq $cpan_dist and $_->{PKG_NAME} =~ m/^p5-/ }
+              values %{ $pkgs->{$pkg_type} };
             my @mc_qry = ($module);
             defined $mod_version and $mod_version and push( @mc_qry, $mod_version );
             my $first_core = Module::CoreList->first_release(@mc_qry);
@@ -347,29 +351,64 @@ around "create_module_info" => sub {
     my $module     = shift;
     my $categories = shift;
 
-    my ( $mod, $dist, $changes );
+    my ( $mod, $dist, $changes, $pod );
     eval {
         my $mcpan = MetaCPAN::API->new();
         $mod     = $mcpan->module($module);
         $dist    = $mcpan->release( distribution => $mod->{distribution} );
-        $changes = $mcpan->fetch( '/changes/' . $mod->{distribution} )->{content};
+        $changes = $mcpan->fetch( "/changes/" . $mod->{distribution} );
+        $pod = $mcpan->pod( module         => $module,
+                            "content-type" => "text/x-pod" );
     };
-    $@ and return $minfo;
+    $self->log->emergency($@) and return $minfo if $@;
 
     defined $minfo or $minfo = {};
+    # fetch -o - http://api.metacpan.org/v0/pod/Module::Build?content-type=text/x-pod | podselect -s DESCRIPTION | pod2text
 
     $minfo->{cpan} = {
                        DIST_NAME   => $dist->{name},
                        DIST        => $dist->{distribution},
                        DIST_FILE   => $dist->{archive},
                        DIST_URL    => $dist->{download_url},
+                       DIST_VER    => $dist->{version},
                        CATEGORIES  => $categories,
                        PKG_LICENSE => $dist->{license},
                        PKG_COMMENT => $dist->{abstract},
                        PKG_PREREQ  => $dist->{dependency},
-                       PKG_DESCR   => $mod->{description},
+                       PKG_CHANGES => $changes->{content},
                        PKG4MOD     => $module,
                      };
+
+    if ($pod)
+    {
+        my $ps = Pod::Select->new();
+        $ps->select("DESCRIPTION");
+        open( my $ifh, "<", \$pod );
+        $minfo->{cpan}->{PKG_DESCR} = "";
+        open( my $ofh, ">", \$minfo->{cpan}->{PKG_DESCR} );
+        $ps->parse_from_filehandle( $ifh, $ofh );
+
+        close($ifh);
+        close($ofh);
+
+        $pod = join( "\n", $minfo->{cpan}->{PKG_DESCR} );
+        $minfo->{cpan}->{PKG_DESCR} = "";
+
+        #open( $ifh, "<", \$pod );
+        #open( $ofh, ">", \$minfo->{cpan}->{PKG_DESCR} );
+        my $pt = Pod::Text->new(
+                                 sentence => 0,
+                                 width    => 76,
+                                 indent   => 0
+                               );
+        #$pt->parse_from_filehandle( $ifh, $ofh );
+        $pt->output_string( \$minfo->{cpan}->{PKG_DESCR} );
+        $pt->parse_string_document($pod);
+
+        $minfo->{cpan}->{PKG_DESCR} =~ s/^[^\n]+\n//;
+    }
+
+    $minfo->{cpan}->{PKG_DESCR} or $minfo->{cpan}->{PKG_DESCR} = $mod->{description};
 
     $dist->{metadata}->{x_breaks} and $minfo->{CONFLICTS} = $dist->{metadata}->{x_breaks};
     $dist->{metadata}->{generated_by}

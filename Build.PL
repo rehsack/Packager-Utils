@@ -45,6 +45,7 @@ my $builder = Module::Build->new(
                 requires => {
                     'perl'                   => 5.012,
                     'Alien::Packages'        => '0.003',
+		    'CPAN::Changes'          => 0,
                     'Class::Load'            => 0,
                     'File::Basename'         => 0,
                     'File::ShareDir'         => '1.03',
@@ -62,6 +63,8 @@ my $builder = Module::Build->new(
                     'MooX::Options'          => '4.000',
                     'MooX::Roles::Pluggable' => 0,
                     'Params::Util'           => '0.37',
+		    'Pod::Select'            => 0,
+		    'Pod::Text'              => 0,
                     # for general asynchronous operations
                     'IO::Async'      => '0.61',
                     'Unix::Statgrab' => '0.102',
