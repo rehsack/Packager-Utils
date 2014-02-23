@@ -633,7 +633,7 @@ sub _create_pkgsrc_p5_package_info
 
     if ( $pinfo->{IS_ADDED} )
     {
-        $pinfo->{DESCRIPTION} = wrap(
+        $pinfo->{COMMITMSG} = wrap(
                                       "", "",
                                       sprintf( $add_commit_tpl,
                                                $minfo->{PKG4MOD},  $minfo->{DIST},
