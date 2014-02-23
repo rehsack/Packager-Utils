@@ -547,6 +547,9 @@ sub _create_pkgsrc_p5_package_info
         $dep->{phase} eq 'configure'
           and $dep->{relationship} eq 'requires'
           and $bldreq{ $req->{PKG_NAME} } = $req;
+        $dep->{phase} eq 'build'
+          and $dep->{relationship} eq 'requires'
+          and $bldreq{ $req->{PKG_NAME} } = $req;
         $dep->{phase} eq 'test'
           and $dep->{relationship} eq 'requires'
           and $bldreq{ $req->{PKG_NAME} } = $req;
@@ -554,11 +557,17 @@ sub _create_pkgsrc_p5_package_info
         $dep->{phase} eq 'configure'
           and $dep->{relationship} eq 'recommends'
           and $bldrec{ $req->{PKG_NAME} } = $req;
+        $dep->{phase} eq 'build'
+          and $dep->{relationship} eq 'recommends'
+          and $bldrec{ $req->{PKG_NAME} } = $req;
         $dep->{phase} eq 'test'
           and $dep->{relationship} eq 'recommends'
           and $bldrec{ $req->{PKG_NAME} } = $req;
 
         $dep->{phase} eq 'configure'
+          and $dep->{relationship} eq 'conflicts'
+          and $bldcon{ $req->{PKG_NAME} } = $req;
+        $dep->{phase} eq 'build'
           and $dep->{relationship} eq 'conflicts'
           and $bldcon{ $req->{PKG_NAME} } = $req;
         $dep->{phase} eq 'test'
@@ -634,12 +643,12 @@ sub _create_pkgsrc_p5_package_info
     if ( $pinfo->{IS_ADDED} )
     {
         $pinfo->{COMMITMSG} = wrap(
-                                      "", "",
-                                      sprintf( $add_commit_tpl,
-                                               $minfo->{PKG4MOD},  $minfo->{DIST},
-                                               $minfo->{DIST_VER}, $pinfo->{PKG_LOCATION},
-                                               $pinfo->{DESCRIPTION} )
-                                    );
+                                    "", "",
+                                    sprintf( $add_commit_tpl,
+                                             $minfo->{PKG4MOD},  $minfo->{DIST},
+                                             $minfo->{DIST_VER}, $pinfo->{PKG_LOCATION},
+                                             $pinfo->{DESCRIPTION} )
+                                  );
     }
     else
     {
