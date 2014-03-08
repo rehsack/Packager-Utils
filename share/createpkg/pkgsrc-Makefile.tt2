@@ -30,7 +30,7 @@ LICENSE=	[% LICENSE %]
 USE_TOOLS+=	[% ut %]
 [% END; END -%]
 
-[% FOREACH req IN REQUIRES;
+[%- FOREACH req IN REQUIRES;
 BUILD_DEP('DEPENDS', req);
 END -%]
 
