@@ -33,7 +33,7 @@ option 'pkgsrc_base_dir' => (
     is     => "lazy",
     format => "s",
     coerce => sub {
-        defined $_[0] or die "pkgsrc_base_dir must be defined";
+        defined $_[0] or return;
         -d $_[0] or die "$_[0]: $!";
         my $bsd_pkg_mk = File::Spec->catfile( $_[0], "mk", "bsd.pkg.mk" );
         -f $bsd_pkg_mk or die "$bsd_pkg_mk: $!";
@@ -57,8 +57,6 @@ sub _build_pkgsrc_base_dir
           and -f File::Spec->catfile( $dir, "mk", "bsd.pkg.mk" )
           and return $dir;
     }
-
-    $self->options_usage( 1, "Unable to guess pkgsrc base dir" );
 
     return;
 }
@@ -130,6 +128,7 @@ around "_build_packages" => sub {
     my $packaged = $self->$next(@_);
 
     my $pkgsrc_base = $self->pkgsrc_base_dir();
+    defined $pkgsrc_base or return $packaged;
     -d $pkgsrc_base or return $packaged;
     my %find_args = (
                       mindepth => 2,
