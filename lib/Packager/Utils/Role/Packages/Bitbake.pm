@@ -305,13 +305,13 @@ sub _create_bitbake_package_info
 
     $minfo->{DIST_URL} =~ m|authors/id/(\w/\w\w/[^/]+)|
       and $pinfo->{MASTER_SITES} = 'http://search.cpan.org/CPAN/authors/id/' . $1 . '/';
-    $pkg_det
-      and $pinfo->{PKG_LOCATION}
-      and $pinfo->{ORIGIN} = File::Spec->catdir( $pinfo->{LOCALBASE}, $pinfo->{PKG_LOCATION} ); # bb-name can hacked in here XXX
+#    $pkg_det
+#      and $pinfo->{PKG_LOCATION}
+#      and $pinfo->{ORIGIN} = File::Spec->catdir( $pinfo->{LOCALBASE}, $pinfo->{PKG_LOCATION} ); # bb-name can hacked in here XXX
 
     $pinfo->{PKG_LOCATION} =
-          File::Spec->catdir( $pinfo->{CATEGORIES}->[0], $minfo->{DIST} . "-perl" )
-      and $pinfo->{ORIGIN} = File::Spec->catdir( $pinfo->{LOCALBASE}, $pinfo->{PKG_LOCATION} )
+          File::Spec->catdir( $pinfo->{CATEGORIES}->[0], lc($minfo->{DIST}) . "-perl" )
+      and $pinfo->{ORIGIN} = File::Spec->catfile( $pinfo->{LOCALBASE}, $pinfo->{PKG_LOCATION}, join("_", join("-", lc($minfo->{DIST}), "perl"), $minfo->{DIST_VER}) )
       and $pinfo->{IS_ADDED} = $pinfo->{CATEGORIES}->[0]
       unless $pinfo->{ORIGIN};
 

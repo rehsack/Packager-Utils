@@ -64,7 +64,7 @@ sub target_file
     $self->templates->{$tgt} or return;
     my $tpl = $self->templates->{$tgt};
     $tpl->{type} eq $pkg_system or return;
-    my $tgtfn = File::Spec->catfile( $target, $tpl->{option} );
+    my $tgtfn = $tpl->{option} =~ m/^\./ ? join("", $target, $tpl->{option}) : File::Spec->catfile( $target, $tpl->{option} );
 
     return ( $tpl, $tgtfn );
 }
