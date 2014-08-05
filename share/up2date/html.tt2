@@ -18,11 +18,11 @@
    END; %]
 <html>
 <head>
-  <title>Outdated Perl5 modules in pkgsrc</title>
+  <title>Outdated Perl5 modules in [% PKG_SYSTEM %]</title>
 </head>
 
 <body>
-  <h1>Outdated Perl5 modules in pkgsrc</h1>
+  <h1>Outdated Perl5 modules in [% PKG_SYSTEM %]</h1>
   <table>
     <tr><th>Package location</th><th>Package</th><th>Maintainer</th><th>Remark</th><th>Information</th></tr>
 [% FOREACH line IN data; %]

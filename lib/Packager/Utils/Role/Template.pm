@@ -76,7 +76,7 @@ sub process_templates
         my ( $tpl, $tgtfn ) = $self->target_file( $pkg_system, $tgt );
         defined $tpl or next;    # XXX die ?
 
-        $template->process( $tpl->{fqpn}, $vars, $tgtfn )
+        $template->process( $tpl->{fqpn}, {PKG_SYSTEM => $pkg_system, %{$vars}}, $tgtfn )
           or die $template->error();
     }
 }
