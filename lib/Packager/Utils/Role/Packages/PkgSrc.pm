@@ -359,6 +359,7 @@ sub _create_pkgsrc_p5_package_info
     my ( $self, $minfo, $pkg_det ) = @_;
 
     my $pkgsrc_base = $self->pkgsrc_base_dir();
+    $pkgsrc_base or return;
     my $pkg_tpl_vars =
       [qw(SVR4_PKGNAME CATEGORIES COMMENT HOMEPAGE LICENSE MAINTAINER CONFLICTS SUPERSEDES)];
 
@@ -404,13 +405,13 @@ sub _create_pkgsrc_p5_package_info
     }
 
     $minfo->{DIST_URL} =~ m|authors/id/(\w/\w\w/[^/]+)|
-      and $pinfo->{MASTER_SITES} = '${MASTER_SITE_PERL_CPAN:=../../authors/id/' . $1 . '/}',
-      $pkg_det
+      and $pinfo->{MASTER_SITES} = '${MASTER_SITE_PERL_CPAN:=../../authors/id/' . $1 . '/}';
+    $pkg_det
       and $pinfo->{PKG_LOCATION}
       and $pinfo->{ORIGIN} = File::Spec->catdir( $pkgsrc_base, $pinfo->{PKG_LOCATION} );
 
     $pinfo->{PKG_LOCATION} =
-          File::Spec->catdir( $pinfo->{CATEGORIES}->[0], 'p5-' . $minfo->{DIST} ),
+          File::Spec->catdir( $pinfo->{CATEGORIES}->[0], 'p5-' . $minfo->{DIST} )
       and $pinfo->{ORIGIN} = File::Spec->catdir( $pkgsrc_base, $pinfo->{PKG_LOCATION} )
       and $pinfo->{IS_ADDED} = $pinfo->{CATEGORIES}->[0]
       unless $pinfo->{ORIGIN};
@@ -707,9 +708,10 @@ around "create_package_info" => sub {
     my $self  = shift;
     my $pinfo = $self->$next(@_);
 
-    my ( $minfo, $pkg_det ) = @_;
+    my ( $minfo, $pkg_det, $pkgsrc_pinfo ) = @_;
     defined $minfo->{cpan}
-      and $pinfo->{pkgsrc} = $self->_create_pkgsrc_p5_package_info( $minfo->{cpan}, $pkg_det );
+      and $pkgsrc_pinfo = $self->_create_pkgsrc_p5_package_info( $minfo->{cpan}, $pkg_det )
+      and $pinfo->{pkgsrc} = $pkgsrc_pinfo;
 
     return $pinfo;
 };
