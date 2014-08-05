@@ -12,7 +12,7 @@ use Carp::Assert qw(affirm);
 use Cwd qw();
 use File::Basename qw(dirname fileparse);
 use File::Find::Rule qw(find);
-use File::Slurp qw(read_file);
+use File::Slurp::Tiny qw(read_file);
 use File::Spec qw();
 use File::pushd;
 use IO::CaptureOutput qw(capture_exec);
