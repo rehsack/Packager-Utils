@@ -71,9 +71,7 @@ sub _build_bitbake_cmd
 has '_bb_var_names' => (
     is      => 'ro',
     default => sub {
-        return [ qw(DISTRO_NAME SRC_URI DISTRO_VERSION),
-		 qw(PN PV PR FILE_DIRNAME MAINTAINER),
-		 qw(HOMEPAGE LICENSE) ];
+        return [ qw(DISTRO_NAME SRC_URI DISTRO_VERSION), qw(PN PV PR FILE_DIRNAME MAINTAINER), qw(HOMEPAGE LICENSE) ];
     },
     init_arg => undef
 );
@@ -82,9 +80,6 @@ sub _get_bb_vars
 {
     my ( $self, $pkg_name, $varnames, $cb ) = @_;
     $varnames or $varnames = $self->_bb_var_names;
-    use DDP;
-    p( $self->_bb_var_names );
-
     my $yoctodir = $self->yocto_build_dir();
 
     my ( $stdout, $stderr );
@@ -110,13 +105,12 @@ sub _get_bb_vars
             my ( $proc, $exitcode ) = @_;
             if ( $exitcode != 0 )
             {
-                use DDP;
                 $self->log->warning($stderr);
                 return $cb->();
             }
             chomp $stdout;
             my @vals = grep { $_ !~ m/^#/ } split( "\n", $stdout );
-            my %allvars = map { $_ =~ m/(\w+)="([^"]*)"/ ? ($1, $2) : () } @vals;
+            my %allvars = map { $_ =~ m/(\w+)="([^"]*)"/ ? ( $1, $2 ) : () } @vals;
 
             my %varnames;
             @varnames{@$varnames} = @allvars{@$varnames};
@@ -129,8 +123,6 @@ sub _get_bb_vars
         },
     );
 
-    use DDP;
-    p(%proc_cfg);
     my $process = IO::Async::Process->new(%proc_cfg);
     do
     {
@@ -157,19 +149,20 @@ sub _fetch_full_bb_details
 
             my %pkg_details;
 
-            $pkg_details{DIST_NAME}      = $bbfile;
-            $pkg_details{DIST_VERSION}   = $pkg_vars{PV};
-            $pkg_details{DIST_FILE}      = $pkg_vars{SRC_URI};
+            #... mapping
+            $pkg_details{DIST_NAME} = fileparse( ( split( /\s+/, $pkg_vars{SRC_URI} ) )[0], @{ $self->_archive_extensions } );
+            $pkg_details{DIST_NAME} =~ m/^(.*)-(v?[0-9].*?)$/ and ( @pkg_details{qw(DIST_NAME DIST_VERSION)} ) = ( $1, $2 );
+            defined $pkg_details{DIST_VERSION} or $pkg_details{DIST_VERSION} = $pkg_vars{PV};
+            $pkg_details{DIST_FILE}      = ( fileparse( ( split( /\s+/, $pkg_vars{SRC_URI} ) )[0] ) )[0];
             $pkg_details{PKG_NAME}       = $pkg_vars{PN};
-            $pkg_details{PKG_VERSION}    = defined $pkg_vars{PR} ? join( "-", @pkg_vars{"PV", "PR"} ) : $pkg_vars{PV};
+            $pkg_details{PKG_VERSION}    = defined $pkg_vars{PR} ? join( "-", @pkg_vars{ "PV", "PR" } ) : $pkg_vars{PV};
             $pkg_details{PKG_MAINTAINER} = $pkg_vars{MAINTAINER};
             $pkg_details{PKG_LOCATION}   = File::Spec->catfile( $pkg_vars{FILE_DIRNAME}, $bbfile );
             $pkg_details{PKG_HOMEPAGE}   = $pkg_vars{HOMEPAGE};
             $pkg_details{PKG_LICENSE}    = $pkg_vars{LICENSE};
-            use DDP;
-            p(%pkg_details);
+            $pkg_details{PKG_MASTER_SITES} =
+              ( fileparse( ( split( /\s+/, $pkg_vars{SRC_URI} ) )[0], @{ $self->_archive_extensions } ) )[1];
 
-            #... mapping
             $cb->( \%pkg_details );
         }
     );
@@ -185,10 +178,6 @@ around "_build_packages" => sub {
     my $bspdir           = $self->bspdir();
     my $bitbake_bblayers = $self->bitbake_bblayers_conf();
 
-    use DDP;
-    p($bitbake_bblayers);
-    p($bspdir);
-
     -d $bspdir or return $packaged;
 
     #get bblayers file
@@ -200,14 +189,12 @@ around "_build_packages" => sub {
     {
         push @src_paths, File::Spec->catdir( $bspdir, $1 );
     }
-    use DDP;
-    p(@src_paths);
 
     my %find_args = (
-                      mindepth => 3,
-                      maxdepth => 3,
-		      name     => "*.bb",
-                    );
+        mindepth => 3,
+        maxdepth => 3,
+        name     => "*.bb",
+    );
 
     if ( $self->cache_timestamp )
     {
@@ -218,8 +205,10 @@ around "_build_packages" => sub {
 
     $self->has_packages_pattern and $find_args{name} = $self->packages_pattern;
 
-    my @files = find( file => %find_args,
-		      in   => @src_paths );
+    my @files = find(
+        file => %find_args,
+        in   => @src_paths
+    );
 
     # my @files = File::Find::Rule->file()->name('*.bb')->maxdepth(3)->in(@src_paths);
 

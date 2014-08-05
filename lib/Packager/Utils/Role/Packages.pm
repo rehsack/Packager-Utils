@@ -20,6 +20,14 @@ option packages_pattern => (
 
 # sub has_packages_pattern { defined $_[0]->packages_pattern and return 1; return; }
 
+has '_archive_extensions' => (
+    is      => 'ro',
+    default => sub {
+        return [ map { "." . $_ } qw(tar tar.gz tar.bz2 tar.xz tgz tbz 7z zip rar) ];
+    },
+    init_arg => undef
+                        );
+
 has "installed_packages" => ( is => "lazy" );
 
 sub _build_installed_packages { {} }
