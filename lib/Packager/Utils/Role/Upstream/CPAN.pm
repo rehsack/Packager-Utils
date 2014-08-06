@@ -8,6 +8,9 @@ use MetaCPAN::API ();
 use Carp qw/croak/;
 use CPAN;
 use CPAN::DistnameInfo;
+use File::Basename qw(fileparse);
+use File::Spec qw();
+use HTTP::Tiny qw();
 use Hash::MoreUtils qw(slice_def);
 use Module::CoreList;
 use Pod::Select qw();
@@ -16,9 +19,9 @@ use Pod::Text qw();
 our $VERSION = '0.001';
 
 has STATE_NEWER_IN_CORE => (
-                             is       => "lazy",
-                             init_arg => undef
-                           );
+    is       => "lazy",
+    init_arg => undef
+);
 
 sub _build_STATE_NEWER_IN_CORE
 {
@@ -28,9 +31,9 @@ sub _build_STATE_NEWER_IN_CORE
 }
 
 has STATE_REMOVED_FROM_INDEX => (
-                                  is       => "lazy",
-                                  init_arg => undef
-                                );
+    is       => "lazy",
+    init_arg => undef
+);
 
 sub _build_STATE_REMOVED_FROM_INDEX
 {
@@ -49,15 +52,15 @@ around "_build_state_remarks" => sub {
 };
 
 option "cpan_home" => (
-                        is     => "ro",
-                        doc    => "Specify another cpan user directory than the default",
-                        format => "s",
-                      );
+    is     => "ro",
+    doc    => "Specify another cpan user directory than the default",
+    format => "s",
+);
 
 option "update_cpan_index" => (
-                                is  => "ro",
-                                doc => "Specify to with (not) to update the having CPAN index",
-                              );
+    is  => "ro",
+    doc => "Specify to with (not) to update the having CPAN index",
+);
 
 around "init_upstream" => sub {
     my $next = shift;
@@ -118,8 +121,8 @@ around "init_upstream" => sub {
 };
 
 has "cpan_versions" => (
-                         is => "lazy",
-                       );
+    is => "lazy",
+);
 
 sub _build_cpan_versions
 {
@@ -144,10 +147,10 @@ sub _build_cpan_versions
         defined($distname) or next;
         defined($distver)  or next;
         if (
-             !defined( $versions->{$distname} )
-             || ( defined( $versions->{$distname} )
-                  && _is_gt( $distver, $versions->{$distname} ) )
-           )
+            !defined( $versions->{$distname} )
+            || ( defined( $versions->{$distname} )
+                && _is_gt( $distver, $versions->{$distname} ) )
+          )
         {
             $versions->{$distname} = $distver;
         }
@@ -202,31 +205,28 @@ around get_distribution_for_module => sub {
 
         foreach my $pkg_type ( keys %{$pkgs} )
         {
-	    # XXX delegate PKG_ related checks to Packages roles!
+            # XXX delegate PKG_ related checks to Packages roles!
             push @found,
-              grep { $_->{DIST_NAME} eq $cpan_dist and $_->{PKG_MASTER_SITES} =~ m/cpan/i }
-              values %{ $pkgs->{$pkg_type} };
+              grep { $_->{DIST_NAME} eq $cpan_dist and $_->{PKG_MASTER_SITES} =~ m/cpan/i } values %{ $pkgs->{$pkg_type} };
             my @mc_qry = ($module);
             defined $mod_version and $mod_version and push( @mc_qry, $mod_version );
             my $first_core = Module::CoreList->first_release(@mc_qry);
             $first_core or next;
             my ($perl_pkg) = grep { $_->{PKG_NAME} eq "perl" } values %{ $pkgs->{$pkg_type} };
-            my $last_core = Module::CoreList->removed_from($module);
-            my $depr_core = Module::CoreList->deprecated_in($module);
-            my %vers_info = slice_def(
-                                       {
-                                         DIST_VERSION => $first_core,
-                                         LAST_VERSION => $last_core,
-                                         DEPR_VERSION => $depr_core,
-                                       }
-                                     );
+            my $last_core  = Module::CoreList->removed_from($module);
+            my $depr_core  = Module::CoreList->deprecated_in($module);
+            my %vers_info  = slice_def(
+                {
+                    DIST_VERSION => $first_core,
+                    LAST_VERSION => $last_core,
+                    DEPR_VERSION => $depr_core,
+                }
+            );
 
             foreach my $vin ( keys %vers_info )
             {
                 ( my $v = version->parse( $vers_info{$vin} )->normal ) =~ s/^v//;
-                $v = join( ".",
-                           grep { defined $_ and $_ }
-                             ( map { $_ =~ s/^0*//; $_ } split( qr/\./, $v ) ) );
+                $v = join( ".", grep { defined $_ and $_ } ( map { $_ =~ s/^0*//; $_ } split( qr/\./, $v ) ) );
                 $vers_info{$vin} = $v;
             }
             push @found, { %$perl_pkg, %vers_info };
@@ -284,8 +284,7 @@ around "upstream_up2date_state" => sub {
 
     $self->cache_timestamp
       and $CPAN::Index::LAST_TIME > $self->cache_timestamp
-      and
-      delete @{$pkg_details}{qw(UPSTREAM_VERSION UPSTREAM_NAME UPSTREAM_COMMENT UPSTREAM_STATE)};
+      and delete @{$pkg_details}{qw(UPSTREAM_VERSION UPSTREAM_NAME UPSTREAM_COMMENT UPSTREAM_STATE)};
 
     defined $pkg_details->{UPSTREAM_VERSION}
       or $pkg_details->{UPSTREAM_VERSION} = $self->cpan_versions->{$dist_name};
@@ -344,6 +343,31 @@ around "upstream_up2date_state" => sub {
     return $pkg_details->{UPSTREAM_STATE} = $self->STATE_OK;
 };
 
+my %parsed_checksums;
+my %chksums;
+
+sub _cpan_distfile_checksums
+{
+    my ( $self,     $uri )      = @_;
+    my ( $uri_file, $uri_path ) = fileparse($uri);
+
+    unless ( defined $parsed_checksums{$uri_path} )
+    {
+        my $chksum_path = "${uri_path}CHECKSUMS";
+        my $response    = HTTP::Tiny->new->get($chksum_path);
+
+        $self->log->emergency("$response->{status} $response->{reason}") and return unless $response->{success};
+        my $cksum;
+        eval "$response->{content}";
+        $self->log->emergency($@) and return if $@;
+
+        $parsed_checksums{$uri_path}++;
+        %chksums = ( %chksums, %{$cksum} );
+    }
+
+    return $chksums{$uri_file};
+}
+
 around "create_module_info" => sub {
     my $next  = shift;
     my $self  = shift;
@@ -358,8 +382,10 @@ around "create_module_info" => sub {
         $mod     = $mcpan->module($module);
         $dist    = $mcpan->release( distribution => $mod->{distribution} );
         $changes = $mcpan->fetch( "/changes/" . $mod->{distribution} );
-        $pod = $mcpan->pod( module         => $module,
-                            "content-type" => "text/x-pod" );
+        $pod     = $mcpan->pod(
+            module         => $module,
+            "content-type" => "text/x-pod"
+        );
     };
     $self->log->emergency($@) and return $minfo if $@;
 
@@ -367,18 +393,21 @@ around "create_module_info" => sub {
     # fetch -o - http://api.metacpan.org/v0/pod/Module::Build?content-type=text/x-pod | podselect -s DESCRIPTION | pod2text
 
     $minfo->{cpan} = {
-                       DIST_NAME   => $dist->{name},
-                       DIST        => $dist->{distribution},
-                       DIST_FILE   => $dist->{archive},
-                       DIST_URL    => $dist->{download_url},
-                       DIST_VER    => $dist->{version},
-                       CATEGORIES  => $categories,
-                       PKG_LICENSE => $dist->{license},
-                       PKG_COMMENT => $dist->{abstract},
-                       PKG_PREREQ  => $dist->{dependency},
-                       PKG_CHANGES => $changes->{content},
-                       PKG4MOD     => $module,
-                     };
+        DIST_NAME   => $dist->{name},
+        DIST        => $dist->{distribution},
+        DIST_FILE   => $dist->{archive},
+        DIST_URL    => $dist->{download_url},
+        DIST_VER    => $dist->{version},
+        CATEGORIES  => $categories,
+        PKG_LICENSE => $dist->{license},
+        PKG_COMMENT => $dist->{abstract},
+        PKG_PREREQ  => $dist->{dependency},
+        PKG_CHANGES => $changes->{content},
+        PKG4MOD     => $module,
+    };
+
+    my %chksums = %{ $self->_cpan_distfile_checksums( $minfo->{cpan}->{DIST_URL} ) };
+    @{ $minfo->{cpan}->{CHKSUM} }{qw(MD5 SHA256 SIZE)} = @chksums{qw(md5 sha256 size)};
 
     if ($pod)
     {
@@ -398,10 +427,10 @@ around "create_module_info" => sub {
         #open( $ifh, "<", \$pod );
         #open( $ofh, ">", \$minfo->{cpan}->{PKG_DESCR} );
         my $pt = Pod::Text->new(
-                                 sentence => 0,
-                                 width    => 76,
-                                 indent   => 0
-                               );
+            sentence => 0,
+            width    => 76,
+            indent   => 0
+        );
         #$pt->parse_from_filehandle( $ifh, $ofh );
         $pt->output_string( \$minfo->{cpan}->{PKG_DESCR} );
         $pt->parse_string_document($pod);

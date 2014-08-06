@@ -15,8 +15,8 @@ DEPENDS += "[% req.PKG_NAME %]"
 
 SRC_URI = "[% DIST_URL %]"
 
-#SRC_URI[md5sum] = "[% MASTER_SITES_MD5 %]"
-#SRC_URI[sha256sum] = "[% MASTER_SITES_SHA256 %]"
+SRC_URI[md5sum] = "[% DIST_URL_MD5 %]"
+SRC_URI[sha256sum] = "[% DIST_URL_SHA256 %]"
 
 S = "${WORKDIR}/[% DIST %]-${PV}"
 

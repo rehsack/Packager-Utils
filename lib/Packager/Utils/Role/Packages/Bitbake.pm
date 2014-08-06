@@ -292,19 +292,20 @@ sub _create_bitbake_package_info
         LICENSE    => join( " | ",
             map { ( $cpan2bb_licenses{$_} ? @{ $cpan2bb_licenses{$_} } : ("unknown($_)") ) }
               @{ _ARRAY( $minfo->{PKG_LICENSE} ) // [ $minfo->{PKG_LICENSE} ] } ),
-        HOMEPAGE     => 'https://metacpan.org/release/' . $minfo->{DIST},
-        MAINTAINER   => 'Poky <poky@yoctoproject.org>',
-        COMMENT      => ucfirst( $minfo->{PKG_COMMENT} ),
-        LOCALBASE    => File::Spec->catdir( $bspdir, qw(sources meta-cpan) ),
-        PKG4MOD      => $minfo->{PKG4MOD},
-        DIST_URL     => $minfo->{DIST_URL},
-        BUILDER_TYPE => "cpan",
+        HOMEPAGE        => 'https://metacpan.org/release/' . $minfo->{DIST},
+        MAINTAINER      => 'Poky <poky@yoctoproject.org>',
+        COMMENT         => ucfirst( $minfo->{PKG_COMMENT} ),
+        LOCALBASE       => File::Spec->catdir( $bspdir, qw(sources meta-cpan) ),
+        PKG4MOD         => $minfo->{PKG4MOD},
+        DIST_URL        => $minfo->{DIST_URL},
+        DIST_URL_MD5    => $minfo->{CHKSUM}->{MD5},
+        DIST_URL_SHA256 => $minfo->{CHKSUM}->{SHA256},
+        BUILDER_TYPE    => "cpan",
     };
 
     $pinfo->{LICENSE_FILES} = join(
         " \\\n",
-        map
-        {
+        map {
             (
                 $cpan2bb_licenses{$_}
                 ? (
@@ -313,7 +314,7 @@ sub _create_bitbake_package_info
                         my $fqln = File::Spec->catfile( $self->bspdir, qw(sources poky meta files common-licenses), $l );
                         unless ( defined $known_md5s{$fqln} )
                         {
-                            my $ctx = Digest::MD5->new();
+                            my $ctx  = Digest::MD5->new();
                             my $data = read_file($fqln);
                             $ctx->add($data);
                             $known_md5s{$fqln} = $ctx->hexdigest;
