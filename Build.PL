@@ -47,6 +47,7 @@ my $builder = Module::Build->new(
                     'Alien::Packages'        => '0.003',
 		    'CPAN::Changes'          => 0,
                     'Class::Load'            => 0,
+		    'Digest::MD5'            => 0,
                     'File::Basename'         => 0,
                     'File::ShareDir'         => '1.03',
                     'File::Find::Rule'       => '0.30',

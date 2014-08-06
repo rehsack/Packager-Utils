@@ -7,16 +7,16 @@ PR = "r0"
 MAINTAINER=	"[% MAINTAINER %]"
 HOMEPAGE=	"[% HOMEPAGE %]"
 
-LIC_FILES_CHKSUM = "[% LICENSE_FILE %]"
+LIC_FILES_CHKSUM = "[% LICENSE_FILES %]"
 
 [%- FOREACH req IN REQUIRES; -%]
 DEPENDS += "[% req.PKG_NAME %]"
 [% END -%]
 
-SRC_URI = "[% MASTER_SITES %]"
+SRC_URI = "[% DIST_URL %]"
 
-SRC_URI[md5sum] = "[% MASTER_SITES_MD5 %]"
-SRC_URI[sha256sum] = "[% MASTER_SITES_SHA256 %]"
+#SRC_URI[md5sum] = "[% MASTER_SITES_MD5 %]"
+#SRC_URI[sha256sum] = "[% MASTER_SITES_SHA256 %]"
 
 S = "${WORKDIR}/[% DIST %]-${PV}"
 

@@ -3,6 +3,7 @@ package Packager::Utils::Role::Packages::Bitbake;
 use strict;
 use warnings;
 
+use Digest::MD5 qw();
 use Moo::Role;
 use MooX::Options;
 use File::pushd;
@@ -208,7 +209,7 @@ around "_build_packages" => sub {
 
     my @files = find(
         file => %find_args,
-        in   => @src_paths
+        in   => \@src_paths
     );
 
     # my @files = File::Find::Rule->file()->name('*.bb')->maxdepth(3)->in(@src_paths);
@@ -253,28 +254,29 @@ around "create_package_info" => sub {
 };
 
 my %cpan2bb_licenses = (
-                          agpl_3      => 'AGPL-3.0',
-                          apache_1_1  => 'Apache-1.1',
-                          apache_2_0  => 'Apache-2.0',
-                          artistic_1  => 'Artistic-1.0',
-                          artistic_2  => 'Artistic-2.0',
-                          bsd         => 'BSD-3-Clause',
-                          freebsd     => 'BSD-2-Clause',
-                          gfdl_1_2    => 'GFDL-1.2',
-                          gfdl_1_3    => 'GFDL-1.3',
-                          gpl_1       => 'GPL-1.0',
-                          gpl_2       => 'GPL-2.0',
-                          gpl_3       => 'GPL-3.0',
-                          lgpl_2_1    => 'LGPL-2.1',
-                          lgpl_3_0    => 'LGPL-3.0',
-                          mit         => 'MIT',
-                          mozilla_1_0 => 'MPL-1.0',
-                          mozilla_1_1 => 'MPL-1.1',
-                          perl_5      => 'Artistic-1.0 | GPL-2.0+',
-                          qpl_1_0     => 'QPL-1.0',
-                          zlib        => 'Zlib',
-                        );
+    agpl_3      => ['AGPL-3.0'],
+    apache_1_1  => ['Apache-1.1'],
+    apache_2_0  => ['Apache-2.0'],
+    artistic_1  => ['Artistic-1.0'],
+    artistic_2  => ['Artistic-2.0'],
+    bsd         => ['BSD-3-Clause'],
+    freebsd     => ['BSD-2-Clause'],
+    gfdl_1_2    => ['GFDL-1.2'],
+    gfdl_1_3    => ['GFDL-1.3'],
+    gpl_1       => ['GPL-1.0'],
+    gpl_2       => ['GPL-2.0'],
+    gpl_3       => ['GPL-3.0'],
+    lgpl_2_1    => ['LGPL-2.1'],
+    lgpl_3_0    => ['LGPL-3.0'],
+    mit         => ['MIT'],
+    mozilla_1_0 => ['MPL-1.0'],
+    mozilla_1_1 => ['MPL-1.1'],
+    perl_5      => [ 'Artistic-1.0', 'GPL-2.0' ],
+    qpl_1_0     => ['QPL-1.0'],
+    zlib        => ['Zlib'],
+);
 
+my %known_md5s;
 
 sub _create_bitbake_package_info
 {
@@ -284,34 +286,58 @@ sub _create_bitbake_package_info
     $bspdir or return;
 
     my $pinfo = {
-        DIST  => $minfo->{DIST},
+        DIST       => $minfo->{DIST},
         DIST_NAME  => $minfo->{DIST_NAME},
         CATEGORIES => $minfo->{CATEGORIES},
-        LICENSE    => join(
-            " AND ",
-            map {
-                    $cpan2bb_licenses{$_}
-                  ? $cpan2bb_licenses{$_}
-                  : "unknown($_)"
-              } @{ _ARRAY( $minfo->{PKG_LICENSE} ) // [ $minfo->{PKG_LICENSE} ] }
-        ),
-        HOMEPAGE   => 'https://metacpan.org/release/' . $minfo->{DIST},
-        MAINTAINER => 'Poky <poky@yoctoproject.org>',
-        COMMENT    => ucfirst( $minfo->{PKG_COMMENT} ),
-        LOCALBASE  => File::Spec->catdir($bspdir, qw(sources meta-cpan)),
-        PKG4MOD    => $minfo->{PKG4MOD},
-	BUILDER_TYPE => "cpan",
-                };
+        LICENSE    => join( " | ",
+            map { ( $cpan2bb_licenses{$_} ? @{ $cpan2bb_licenses{$_} } : ("unknown($_)") ) }
+              @{ _ARRAY( $minfo->{PKG_LICENSE} ) // [ $minfo->{PKG_LICENSE} ] } ),
+        HOMEPAGE     => 'https://metacpan.org/release/' . $minfo->{DIST},
+        MAINTAINER   => 'Poky <poky@yoctoproject.org>',
+        COMMENT      => ucfirst( $minfo->{PKG_COMMENT} ),
+        LOCALBASE    => File::Spec->catdir( $bspdir, qw(sources meta-cpan) ),
+        PKG4MOD      => $minfo->{PKG4MOD},
+        DIST_URL     => $minfo->{DIST_URL},
+        BUILDER_TYPE => "cpan",
+    };
 
-    $minfo->{DIST_URL} =~ m|authors/id/(\w/\w\w/[^/]+)|
-      and $pinfo->{MASTER_SITES} = 'http://search.cpan.org/CPAN/authors/id/' . $1 . '/';
-#    $pkg_det
-#      and $pinfo->{PKG_LOCATION}
-#      and $pinfo->{ORIGIN} = File::Spec->catdir( $pinfo->{LOCALBASE}, $pinfo->{PKG_LOCATION} ); # bb-name can hacked in here XXX
+    $pinfo->{LICENSE_FILES} = join(
+        " \\\n",
+        map
+        {
+            (
+                $cpan2bb_licenses{$_}
+                ? (
+                    map {
+                        my $l = $_;
+                        my $fqln = File::Spec->catfile( $self->bspdir, qw(sources poky meta files common-licenses), $l );
+                        unless ( defined $known_md5s{$fqln} )
+                        {
+                            my $ctx = Digest::MD5->new();
+                            my $data = read_file($fqln);
+                            $ctx->add($data);
+                            $known_md5s{$fqln} = $ctx->hexdigest;
+                        }
+                        "file://\${COMMON_LICENSE_DIR}/$l;md5=$known_md5s{$fqln}";
+                    } @{ $cpan2bb_licenses{$_} }
+                  )
+                : ("unknown($_)")
+              )
+        } @{ _ARRAY( $minfo->{PKG_LICENSE} ) // [ $minfo->{PKG_LICENSE} ] }
+    );
 
-    $pinfo->{PKG_LOCATION} =
-          File::Spec->catdir( $pinfo->{CATEGORIES}->[0], lc($minfo->{DIST}) . "-perl" )
-      and $pinfo->{ORIGIN} = File::Spec->catfile( $pinfo->{LOCALBASE}, $pinfo->{PKG_LOCATION}, join("_", join("-", lc($minfo->{DIST}), "perl"), $minfo->{DIST_VER}) )
+    #$minfo->{DIST_URL} =~ m|authors/id/(\w/\w\w/[^/]+/.*)|
+    #  and $pinfo->{MASTER_SITES} = 'http://search.cpan.org/CPAN/authors/id/' . $1 . '/';
+    #    $pkg_det
+    #      and $pinfo->{PKG_LOCATION}
+    #      and $pinfo->{ORIGIN} = File::Spec->catdir( $pinfo->{LOCALBASE}, $pinfo->{PKG_LOCATION} ); # bb-name can hacked in here XXX
+
+    $pinfo->{PKG_LOCATION} = File::Spec->catdir( $pinfo->{CATEGORIES}->[0], lc( $minfo->{DIST} ) . "-perl" )
+      and $pinfo->{ORIGIN} = File::Spec->catfile(
+        $pinfo->{LOCALBASE},
+        $pinfo->{PKG_LOCATION},
+        join( "_", join( "-", lc( $minfo->{DIST} ), "perl" ), $minfo->{DIST_VER} )
+      )
       and $pinfo->{IS_ADDED} = $pinfo->{CATEGORIES}->[0]
       unless $pinfo->{ORIGIN};
 
@@ -319,14 +345,14 @@ sub _create_bitbake_package_info
     {
         $minfo->{PKG_DESCR} =~ s/^(.*?)\n\n.*/$1/ms;
         $minfo->{PKG_DESCR} =~ s/\n/ /ms;
-	local $Text::Wrap::separator=" \\\n";
-	local $Text::Wrap::columns = 72;
+        local $Text::Wrap::separator = " \\\n";
+        local $Text::Wrap::columns   = 72;
         $pinfo->{DESCRIPTION} = wrap( "", "", $minfo->{PKG_DESCR} );
     }
     elsif ( $minfo->{PKG_COMMENT} )
     {
-	local $Text::Wrap::separator=" \\\n";
-	local $Text::Wrap::columns = 72;
+        local $Text::Wrap::separator = " \\\n";
+        local $Text::Wrap::columns   = 72;
         $pinfo->{DESCRIPTION} = wrap( "", "", $minfo->{PKG_COMMENT} );
     }
     else
@@ -353,73 +379,67 @@ sub _create_bitbake_package_info
         my $dep_dist = $self->get_distribution_for_module( $dep->{module}, $dep->{version} );
         "perl" eq $dep->{module}
           and push @{ $pinfo->{EXTRA_VARS}->{PERL5_REQD} },
-          join( ".",
-                grep { defined $_ and $_ }
-                  ( map { $_ =~ s/^0*//; $_ } split( qr/\./, $dep->{version} ) ) )
+          join( ".", grep { defined $_ and $_ } ( map { $_ =~ s/^0*//; $_ } split( qr/\./, $dep->{version} ) ) )
           and next;
 
         if ( $dep_dist && $dep_dist->{cpan} && $dep_dist->{cpan}->{ $dep->{module} } )
         {
             my $dep_det = $dep_dist->{cpan}->{ $dep->{module} };
             $dep_det and @{$dep_det} == 1 and $dep_det->[0]->{PKG_NAME} ne "perl" and $req = {
-                PKG_NAME => $dep_det->[0]->{PKG_NAME},
-                REQ_VERSION => $dep->{version},    # XXX numify? -[0-9]*, size matters (see M::B)!
+                PKG_NAME     => $dep_det->[0]->{PKG_NAME},
+                REQ_VERSION  => $dep->{version},                 # XXX numify? -[0-9]*, size matters (see M::B)!
                 PKG_LOCATION => $dep_det->[0]->{PKG_LOCATION},
-                                                                                             };
+            };
             $dep_det and @{$dep_det} == 1 and $dep_det->[0]->{PKG_NAME} eq "perl" and $req = {
-                PKG_NAME  => $dep_det->[0]->{PKG_NAME},
-                CORE_NAME => $dep_det->[0]->{PKG_NAME},
-                CORE_VERSION => $dep->{version},    # XXX numify? -[0-9]*, size matters (see M::B)!
+                PKG_NAME     => $dep_det->[0]->{PKG_NAME},
+                CORE_NAME    => $dep_det->[0]->{PKG_NAME},
+                CORE_VERSION => $dep->{version},                 # XXX numify? -[0-9]*, size matters (see M::B)!
                 PKG_LOCATION => $dep_det->[0]->{PKG_LOCATION},
                 (
-                   defined $dep_det->[0]->{LAST_VERSION}
-                   ? ( LAST_VERSION => $dep_det->[0]->{LAST_VERSION} )
-                   : (),
+                    defined $dep_det->[0]->{LAST_VERSION} ? ( LAST_VERSION => $dep_det->[0]->{LAST_VERSION} )
+                    : (),
                 ),
                 (
-                   defined $dep_det->[0]->{DEPR_VERSION}
-                   ? ( DEPR_VERSION => $dep_det->[0]->{DEPR_VERSION} )
-                   : (),
+                    defined $dep_det->[0]->{DEPR_VERSION} ? ( DEPR_VERSION => $dep_det->[0]->{DEPR_VERSION} )
+                    : (),
                 ),
             };
 
             $dep_det and @{$dep_det} > 1 and $req = {
-                PKG_NAME => $dep_det->[0]->{PKG_NAME},
-                REQ_VERSION => $dep->{version},    # XXX numify? -[0-9]*, size matters (see M::B)!
-                CORE_NAME    => $dep_det->[1]->{PKG_NAME},    # XXX find lowest reqd. Perl5 version!
-                CORE_VERSION => $dep_det->[1]->{DIST_VERSION}
-                ,                                             # XXX find lowest reqd. Perl5 version!
+                PKG_NAME     => $dep_det->[0]->{PKG_NAME},
+                REQ_VERSION  => $dep->{version},                  # XXX numify? -[0-9]*, size matters (see M::B)!
+                CORE_NAME    => $dep_det->[1]->{PKG_NAME},        # XXX find lowest reqd. Perl5 version!
+                CORE_VERSION => $dep_det->[1]->{DIST_VERSION},    # XXX find lowest reqd. Perl5 version!
                 (
-                   defined $dep_det->[1]->{LAST_VERSION}
-                   ? ( LAST_VERSION => $dep_det->[1]->{LAST_VERSION} )
-                   : (),
+                    defined $dep_det->[1]->{LAST_VERSION} ? ( LAST_VERSION => $dep_det->[1]->{LAST_VERSION} )
+                    : (),
                 ),
                 (
-                   defined $dep_det->[1]->{DEPR_VERSION}
-                   ? ( DEPR_VERSION => $dep_det->[1]->{DEPR_VERSION} )
-                   : (),
+                    defined $dep_det->[1]->{DEPR_VERSION} ? ( DEPR_VERSION => $dep_det->[1]->{DEPR_VERSION} )
+                    : (),
                 ),
                 PKG_LOCATION => $dep_det->[0]->{PKG_LOCATION},
-                                                    };
+            };
         }
         else
         {
-            push @missing, $req = {
-                                    PKG_NAME     => $dep->{module},
-                                    REQ_VERSION  => $dep->{version},    # XXX numify? -[0-9]*
-                                    PKG_LOCATION => 'n/a',
-                                  };
+            $req = {
+                PKG_NAME     => $dep->{module},
+                REQ_VERSION  => $dep->{version},    # XXX numify? -[0-9]*
+                PKG_LOCATION => 'n/a',
+            };
+            $dep->{relationship} =~ m/^(?:requires|recommends)$/
+              and $dep->{phase} =~ m/^(?:configure|build|test|runtime)$/
+              and push( @missing, $req );
             next;
         }
 
         my ( $ncver, $cvernm );
         defined $req->{CORE_NAME}
           and $ncver = scalar( split( qr/\./, $req->{CORE_VERSION} ) )
-          and $cvernm =
-          ( $ncver <= 2 ? $req->{CORE_VERSION} . ( ".0" x ( 3 - $ncver ) ) : $req->{CORE_VERSION} ),
+          and $cvernm = ( $ncver <= 2 ? $req->{CORE_VERSION} . ( ".0" x ( 3 - $ncver ) ) : $req->{CORE_VERSION} ),
           and version->parse($cvernm) <= version->parse($])
-          and push @{ $pinfo->{EXTRA_VARS}->{PERL5_REQD} },
-          "$req->{CORE_VERSION}	# $dep->{module} >= $dep->{version}"
+          and push @{ $pinfo->{EXTRA_VARS}->{PERL5_REQD} }, "$req->{CORE_VERSION}	# $dep->{module} >= $dep->{version}"
           and next
           unless ( $req->{LAST_VERSION} or $req->{DEPR_VERSION} );
 
@@ -499,13 +519,13 @@ sub _create_bitbake_package_info
     }
 
     my %depdefs = (
-                    BUILD_REQUIRES   => \%bldreq,
-                    BUILD_RECOMMENDS => \%bldrec,
-                    BUILD_CONFLICTS  => \%bldcon,
-                    REQUIRES         => \%rtreq,
-                    RECOMMENDS       => \%rtrec,
-                    CONFLICTS        => \%rtcon,
-                  );
+        BUILD_REQUIRES   => \%bldreq,
+        BUILD_RECOMMENDS => \%bldrec,
+        BUILD_CONFLICTS  => \%bldcon,
+        REQUIRES         => \%rtreq,
+        RECOMMENDS       => \%rtrec,
+        CONFLICTS        => \%rtcon,
+    );
 
     foreach my $dept ( keys %depdefs )
     {
