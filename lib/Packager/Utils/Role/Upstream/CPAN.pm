@@ -13,6 +13,7 @@ use File::Spec qw();
 use HTTP::Tiny qw();
 use Hash::MoreUtils qw(slice_def);
 use Module::CoreList;
+use Params::Util qw(_ARRAY);
 use Pod::Select qw();
 use Pod::Text qw();
 
@@ -196,41 +197,38 @@ around get_distribution_for_module => sub {
     my $mod_version = shift;
     my @found;
 
-    if ( $CPAN::META->exists( "CPAN::Module", $module ) )
+    my $pkgs = $self->packages;
+
+    my $cpan_mod = $CPAN::META->instance( "CPAN::Module", $module );
+    $cpan_mod and my $cpan_dist = CPAN::DistnameInfo->new( $cpan_mod->cpan_file() )->dist();
+
+    foreach my $pkg_type ( keys %{$pkgs} )
     {
-        my $pkgs = $self->packages;
-
-        my $cpan_mod = $CPAN::META->instance( "CPAN::Module", $module );
-        my $cpan_dist = CPAN::DistnameInfo->new( $cpan_mod->cpan_file() )->dist();
-
-        foreach my $pkg_type ( keys %{$pkgs} )
-        {
-            # XXX delegate PKG_ related checks to Packages roles!
-            push @found,
-              grep { $_->{DIST_NAME} eq $cpan_dist and $_->{PKG_MASTER_SITES} =~ m/cpan/i } values %{ $pkgs->{$pkg_type} };
-            my @mc_qry = ($module);
-            defined $mod_version and $mod_version and push( @mc_qry, $mod_version );
-            my $first_core = Module::CoreList->first_release(@mc_qry);
-            $first_core or next;
-            my ($perl_pkg) = grep { $_->{PKG_NAME} eq "perl" } values %{ $pkgs->{$pkg_type} };
-            my $last_core  = Module::CoreList->removed_from($module);
-            my $depr_core  = Module::CoreList->deprecated_in($module);
-            my %vers_info  = slice_def(
-                {
-                    DIST_VERSION => $first_core,
-                    LAST_VERSION => $last_core,
-                    DEPR_VERSION => $depr_core,
-                }
-            );
-
-            foreach my $vin ( keys %vers_info )
+        # XXX delegate PKG_ related checks to Packages roles!
+        $cpan_dist and push @found,
+          grep { $_->{DIST_NAME} eq $cpan_dist and $_->{PKG_MASTER_SITES} =~ m/cpan/i } values %{ $pkgs->{$pkg_type} };
+        my @mc_qry = ($module);
+        defined $mod_version and $mod_version and push( @mc_qry, $mod_version );
+        my $first_core = Module::CoreList->first_release(@mc_qry);
+        $first_core or next;
+        my ($perl_pkg) = grep { $_->{PKG_NAME} eq "perl" } values %{ $pkgs->{$pkg_type} };
+        my $last_core  = Module::CoreList->removed_from($module);
+        my $depr_core  = Module::CoreList->deprecated_in($module);
+        my %vers_info  = slice_def(
             {
-                ( my $v = version->parse( $vers_info{$vin} )->normal ) =~ s/^v//;
-                $v = join( ".", grep { defined $_ and $_ } ( map { $_ =~ s/^0*//; $_ } split( qr/\./, $v ) ) );
-                $vers_info{$vin} = $v;
+                DIST_VERSION => $first_core,
+                LAST_VERSION => $last_core,
+                DEPR_VERSION => $depr_core,
             }
-            push @found, { %$perl_pkg, %vers_info };
+        );
+
+        foreach my $vin ( keys %vers_info )
+        {
+            ( my $v = version->parse( $vers_info{$vin} )->normal ) =~ s/^v//;
+            $v = join( ".", grep { defined $_ and $_ } ( map { $_ =~ s/^0*//; $_ } split( qr/\./, $v ) ) );
+            $vers_info{$vin} = $v;
         }
+        push @found, { %$perl_pkg, %vers_info };
     }
 
     @found and $found = { ( $found ? %{$found} : () ), cpan => { $module => \@found } };
@@ -387,7 +385,7 @@ around "create_module_info" => sub {
             "content-type" => "text/x-pod"
         );
     };
-    $self->log->emergency($@) and return $minfo if $@;
+    $self->log->emergency("$@ for $module") and return $minfo if $@;
 
     defined $minfo or $minfo = {};
     # fetch -o - http://api.metacpan.org/v0/pod/Module::Build?content-type=text/x-pod | podselect -s DESCRIPTION | pod2text
@@ -406,6 +404,11 @@ around "create_module_info" => sub {
         PKG4MOD     => $module,
     };
 
+    _ARRAY($minfo->{cpan}->{PKG_LICENSE}) or delete $minfo->{cpan}->{PKG_LICENSE};
+    _ARRAY($minfo->{cpan}->{PKG_LICENSE})
+      and $minfo->{cpan}->{PKG_LICENSE}->[0] =~ m/(?:unknown|unrestricted|open_source)/i
+      and delete $minfo->{cpan}->{PKG_LICENSE};
+
     my %chksums = %{ $self->_cpan_distfile_checksums( $minfo->{cpan}->{DIST_URL} ) };
     @{ $minfo->{cpan}->{CHKSUM} }{qw(MD5 SHA256 SIZE)} = @chksums{qw(md5 sha256 size)};
 
@@ -421,11 +424,9 @@ around "create_module_info" => sub {
         close($ifh);
         close($ofh);
 
-        $pod = join( "\n", $minfo->{cpan}->{PKG_DESCR} );
+        my $pod_selected = join( "\n", $minfo->{cpan}->{PKG_DESCR} );
         $minfo->{cpan}->{PKG_DESCR} = "";
 
-        #open( $ifh, "<", \$pod );
-        #open( $ofh, ">", \$minfo->{cpan}->{PKG_DESCR} );
         my $pt = Pod::Text->new(
             sentence => 0,
             width    => 76,
@@ -433,11 +434,30 @@ around "create_module_info" => sub {
         );
         #$pt->parse_from_filehandle( $ifh, $ofh );
         $pt->output_string( \$minfo->{cpan}->{PKG_DESCR} );
-        $pt->parse_string_document($pod);
+        $pt->parse_string_document($pod_selected);
 
         $minfo->{cpan}->{PKG_DESCR} =~ s/^[^\n]+\n//;
+
+        defined $minfo->{cpan}->{PKG_COMMENT} or $minfo->{cpan}->{PKG_COMMENT} = substr( $minfo->{cpan}->{PKG_DESCR}, 0, 76 );
     }
 
+    if ( $pod and not $minfo->{cpan}->{PKG_LICENSE} )
+    {
+        my $ps = Pod::Select->new();
+        $ps->select("COPYRIGHT.*|AUTHOR|LICENSE.*");
+        open( my $ifh, "<", \$pod );
+        my $license = "";
+        open( my $ofh, ">", \$license );
+        $ps->parse_from_filehandle( $ifh, $ofh );
+
+        close($ifh);
+        close($ofh);
+
+        my $pod_selected = join( "\n", $license );
+        $pod_selected =~ m/the same (terms?|licenses?) as Perl itself/i and $minfo->{cpan}->{PKG_LICENSE} = ['perl_5'];
+    }
+
+    $minfo->{cpan}->{PKG_LICENSE} or $minfo->{cpan}->{PKG_LICENSE} = $dist->{license};
     $minfo->{cpan}->{PKG_DESCR} or $minfo->{cpan}->{PKG_DESCR} = $mod->{description};
 
     $dist->{metadata}->{x_breaks} and $minfo->{CONFLICTS} = $dist->{metadata}->{x_breaks};
