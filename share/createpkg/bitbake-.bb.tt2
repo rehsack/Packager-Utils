@@ -18,6 +18,10 @@ SRC_URI = "[% DIST_URL %]"
 SRC_URI[md5sum] = "[% DIST_URL_MD5 %]"
 SRC_URI[sha256sum] = "[% DIST_URL_SHA256 %]"
 
+[%- FOREACH req IN RECOMMENDS; -%]
+RRECOMMENDS_${PV} += "[% req.PKG_NAME %]"
+[% END -%]
+
 S = "${WORKDIR}/[% DIST %]-${PV}"
 
 EXTRA_CPANFLAGS = "EXPATLIBPATH=${STAGING_LIBDIR} EXPATINCPATH=${STAGING_INCDIR}"
@@ -26,7 +30,7 @@ inherit [% BUILDER_TYPE %]
 
 do_compile() {
 	export LIBC="$(find ${STAGING_DIR_TARGET}/${base_libdir}/ -name 'libc-*.so')"
-	cpan_do_compile
+	[% BUILDER_TYPE %]_do_compile
 }
 
 BBCLASSEXTEND = "native"
