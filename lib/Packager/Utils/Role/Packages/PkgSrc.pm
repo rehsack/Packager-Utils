@@ -416,6 +416,7 @@ sub _create_pkgsrc_p5_package_info
       and $pinfo->{IS_ADDED} = $pinfo->{CATEGORIES}->[0]
       unless $pinfo->{ORIGIN};
 
+    # XXX leave original untouched
     if ( $minfo->{PKG_DESCR} )
     {
         $minfo->{PKG_DESCR} =~ s/^(.*?)\n\n.*/$1/ms;
