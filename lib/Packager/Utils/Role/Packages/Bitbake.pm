@@ -271,6 +271,7 @@ my %cpan2bb_licenses = (
     mit         => ['MIT'],
     mozilla_1_0 => ['MPL-1.0'],
     mozilla_1_1 => ['MPL-1.1'],
+    openssl     => ['OpenSSL'],
     perl_5      => [ 'Artistic-1.0', 'GPL-2.0' ],
     qpl_1_0     => ['QPL-1.0'],
     zlib        => ['Zlib'],
@@ -284,6 +285,8 @@ sub _create_bitbake_package_info
 
     my $bspdir = $self->bspdir;
     $bspdir or return;
+
+    defined $minfo->{PKG_COMMENT} or die "$minfo->{PKG4MOD}";
 
     my $pinfo = {
         DIST       => $minfo->{DIST},
@@ -344,21 +347,26 @@ sub _create_bitbake_package_info
 
     if ( $minfo->{PKG_DESCR} )
     {
-        $minfo->{PKG_DESCR} =~ s/^(.*?)\n\n.*/$1/ms;
-        $minfo->{PKG_DESCR} =~ s/\n/ /ms;
-        local $Text::Wrap::separator = " \\\n";
-        local $Text::Wrap::columns   = 72;
-        $pinfo->{DESCRIPTION} = wrap( "", "", $minfo->{PKG_DESCR} );
+        $pinfo->{DESCRIPTION} = $minfo->{PKG_DESCR};
+        $pinfo->{DESCRIPTION} =~ s/^(.*?)\n\n.*/$1/ms;
+        $pinfo->{DESCRIPTION} =~ s/\n/ /ms;
     }
     elsif ( $minfo->{PKG_COMMENT} )
     {
-        local $Text::Wrap::separator = " \\\n";
-        local $Text::Wrap::columns   = 72;
-        $pinfo->{DESCRIPTION} = wrap( "", "", $minfo->{PKG_COMMENT} );
+        $pinfo->{DESCRIPTION} = $minfo->{PKG_COMMENT};
     }
     else
     {
         $pinfo->{DESCRIPTION} = "Perl module for " . $minfo->{PKG4MOD};
+    }
+
+    $pinfo->{DESCRIPTION} =~ s/([^\\])([\\"#])/$1\\$2/g;
+
+    if(length($pinfo->{DESCRIPTION}) > 72)
+    {
+        local $Text::Wrap::separator = " \\\n";
+        local $Text::Wrap::columns   = 72;
+        $pinfo->{DESCRIPTION} = wrap( "", "", $pinfo->{DESCRIPTION} );
     }
 
     $minfo->{GENERATOR}
@@ -394,7 +402,7 @@ sub _create_bitbake_package_info
             $dep_det and @{$dep_det} == 1 and $dep_det->[0]->{PKG_NAME} eq "perl" and $req = {
                 PKG_NAME     => $dep_det->[0]->{PKG_NAME},
                 CORE_NAME    => $dep_det->[0]->{PKG_NAME},
-                CORE_VERSION => $dep->{version},                 # XXX numify? -[0-9]*, size matters (see M::B)!
+                CORE_VERSION => $dep_det->[0]->{DIST_VERSION},   # XXX numify? -[0-9]*, size matters (see M::B)!
                 PKG_LOCATION => $dep_det->[0]->{PKG_LOCATION},
                 (
                     defined $dep_det->[0]->{LAST_VERSION} ? ( LAST_VERSION => $dep_det->[0]->{LAST_VERSION} )
@@ -428,6 +436,7 @@ sub _create_bitbake_package_info
                 PKG_NAME     => $dep->{module},
                 REQ_VERSION  => $dep->{version},    # XXX numify? -[0-9]*
                 PKG_LOCATION => 'n/a',
+		RELATION     => $dep->{relationship},
             };
             $dep->{relationship} =~ m/^(?:requires|recommends)$/
               and $dep->{phase} =~ m/^(?:configure|build|test|runtime)$/
@@ -435,7 +444,7 @@ sub _create_bitbake_package_info
             next;
         }
 
-        my ( $ncver, $cvernm );
+	my ( $ncver, $cvernm );
         defined $req->{CORE_NAME}
           and $ncver = scalar( split( qr/\./, $req->{CORE_VERSION} ) )
           and $cvernm = ( $ncver <= 2 ? $req->{CORE_VERSION} . ( ".0" x ( 3 - $ncver ) ) : $req->{CORE_VERSION} ),
@@ -455,6 +464,8 @@ sub _create_bitbake_package_info
           and $dep->{relationship} eq 'requires'
           and $req->{CORE_VERSION}
           and next;
+
+	# XXX add additional checks for configure/build phase for M::B(::T?) / EU::CB
 
         $dep->{phase} eq 'configure'
           and $dep->{relationship} eq 'requires'
@@ -501,7 +512,7 @@ sub _create_bitbake_package_info
 
     foreach my $req (@missing)
     {
-        $self->log->error("Missing $req->{PKG_NAME} $req->{REQ_VERSION}");
+        $self->log->error("Missing $req->{PKG_NAME} $req->{REQ_VERSION} $req->{RELATION} by $pinfo->{PKG4MOD}");
     }
 
     foreach my $pkg ( keys %rtrec )
