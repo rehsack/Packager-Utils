@@ -177,7 +177,7 @@ around "_build_packages" => sub {
     my $self     = shift;
     my $packaged = $self->$next(@_);
 
-    my $bspdir           = $self->bspdir();
+    my $bspdir           = $self->bspdir() or return;
     my $bitbake_bblayers = $self->bitbake_bblayers_conf();
 
     -d $bspdir or return $packaged;
