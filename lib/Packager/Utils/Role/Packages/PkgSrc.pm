@@ -61,7 +61,6 @@ sub _build_pkgsrc_base_dir
     return;
 }
 
-# XXX guess that using Alien::Packags
 option 'pkgsrc_prefix' => (
                             is        => "lazy",
                             format    => "s",
@@ -416,20 +415,28 @@ sub _create_pkgsrc_p5_package_info
       and $pinfo->{IS_ADDED} = $pinfo->{CATEGORIES}->[0]
       unless $pinfo->{ORIGIN};
 
-    # XXX leave original untouched
     if ( $minfo->{PKG_DESCR} )
     {
-        $minfo->{PKG_DESCR} =~ s/^(.*?)\n\n.*/$1/ms;
-        $minfo->{PKG_DESCR} =~ s/\n/ /ms;
-        $pinfo->{DESCRIPTION} = wrap( "", "", $minfo->{PKG_DESCR} );
+        $pinfo->{DESCRIPTION} = $minfo->{PKG_DESCR};
+        $pinfo->{DESCRIPTION} =~ s/^(.*?)\n\n.*/$1/ms;
+        $pinfo->{DESCRIPTION} =~ s/\n/ /ms;
     }
     elsif ( $minfo->{PKG_COMMENT} )
     {
-        $pinfo->{DESCRIPTION} = wrap( "", "", $minfo->{PKG_COMMENT} );
+        $pinfo->{DESCRIPTION} = $minfo->{PKG_COMMENT};
     }
     else
     {
         $pinfo->{DESCRIPTION} = "Perl module for " . $minfo->{PKG4MOD};
+    }
+
+    $pinfo->{DESCRIPTION} =~ s/([^\\])([\\"#])/$1\\$2/g;
+
+    if(length($pinfo->{DESCRIPTION}) > 72)
+    {
+        local $Text::Wrap::separator = " \\\n";
+        local $Text::Wrap::columns   = 72;
+        $pinfo->{DESCRIPTION} = wrap( "", "", $pinfo->{DESCRIPTION} );
     }
 
     my ( $bn, $dir, $sfx ) = fileparse( $minfo->{DIST_FILE} );
