@@ -67,7 +67,9 @@ has bitbake_cmd => ( is => "lazy" );
 sub _build_bitbake_cmd
 {
     my $bb_cmd = IPC::Cmd::can_run("bitbake");
-    return $bb_cmd;
+    # XXX use attribute for layer paths, find poky and search relative to that
+    $bb_cmd or $bb_cmd = File::Spec->catfile($_[0]->bspdir, qw(sources poky bitbake bin bitbake));
+    $bb_cmd;
 }
 
 has '_bb_var_names' => (
@@ -121,7 +123,7 @@ sub _get_bb_vars
         on_exception => sub {
             my ( $exception, $errno, $exitcode ) = @_;
             $exception and die $exception;
-            die $self->bmake_cmd . " died with (exit=$exitcode): " . $stderr;
+            die $self->bitbake_cmd . " died with (exit=$exitcode): " . $stderr;
         },
     );
 
@@ -186,6 +188,7 @@ around "_build_packages" => sub {
     my $layer_conf = read_file( $bitbake_bblayers, binmode => 'encoding(UTF-8)' );
     my $tag = "{BSPDIR}";
 
+    # XXX extract into attribute
     my @src_paths;
     while ( $layer_conf =~ m/\Q$tag\E([^ ]+)/g )
     {
@@ -437,6 +440,7 @@ sub _create_bitbake_package_info
                 REQ_VERSION  => $dep->{version},    # XXX numify? -[0-9]*
                 PKG_LOCATION => 'n/a',
 		RELATION     => $dep->{relationship},
+		PHASE        => $dep->{phase},
             };
             $dep->{relationship} =~ m/^(?:requires|recommends)$/
               and $dep->{phase} =~ m/^(?:configure|build|test|runtime)$/
@@ -512,7 +516,7 @@ sub _create_bitbake_package_info
 
     foreach my $req (@missing)
     {
-        $self->log->error("Missing $req->{PKG_NAME} $req->{REQ_VERSION} $req->{RELATION} by $pinfo->{PKG4MOD}");
+        $self->log->error("Missing $req->{PKG_NAME} $req->{REQ_VERSION} $req->{PHASE}-$req->{RELATION} by $pinfo->{PKG4MOD}");
     }
 
     foreach my $pkg ( keys %rtrec )
@@ -529,6 +533,22 @@ sub _create_bitbake_package_info
     {
         defined $rtreq{$pkg} and $rtreq{$pkg} = delete $bldreq{$pkg};
     }
+
+    %bldreq = map {
+	my $k = $_;
+	my $v = $bldreq{$k};
+	$k =~ m/-perl$/ and $k .= "-native";
+	$v->{PKG_NAME} =~ m/-perl$/ and $v->{PKG_NAME} .= "-native";
+	($k, $v);
+    } keys %bldreq;
+
+    %bldrec = map {
+	my $k = $_;
+	my $v = $bldrec{$k};
+	$k =~ m/-perl$/ and $k .= "-native";
+	$v->{PKG_NAME} =~ m/-perl$/ and $v->{PKG_NAME} .= "-native";
+	($k, $v);
+    } keys %bldrec;
 
     my %depdefs = (
         BUILD_REQUIRES   => \%bldreq,

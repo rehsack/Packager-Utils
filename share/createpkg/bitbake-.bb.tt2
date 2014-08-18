@@ -9,22 +9,28 @@ HOMEPAGE=	"[% HOMEPAGE %]"
 
 LIC_FILES_CHKSUM = "[% LICENSE_FILES %]"
 
-[%- FOREACH req IN REQUIRES; -%]
-DEPENDS += "[% req.PKG_NAME %]"
-[% END -%]
-
 SRC_URI = "[% DIST_URL %]"
 
 SRC_URI[md5sum] = "[% DIST_URL_MD5 %]"
 SRC_URI[sha256sum] = "[% DIST_URL_SHA256 %]"
 
+[%- FOREACH req IN REQUIRES; -%]
+RDEPENDS_${PN} += "[% req.PKG_NAME %]"
+[% END -%]
+
 [%- FOREACH req IN RECOMMENDS; -%]
-RRECOMMENDS_${PV} += "[% req.PKG_NAME %]"
+RRECOMMENDS_${PN} += "[% req.PKG_NAME %]"
+[% END -%]
+
+[%- FOREACH req IN BUILD_REQUIRES; -%]
+DEPENDS += "[% req.PKG_NAME %]"
+[% END -%]
+
+[%- FOREACH req IN BUILD_RECOMMENDS; -%]
+RECOMMENDS += "[% req.PKG_NAME %]"
 [% END -%]
 
 S = "${WORKDIR}/[% DIST %]-${PV}"
-
-EXTRA_CPANFLAGS = "EXPATLIBPATH=${STAGING_LIBDIR} EXPATINCPATH=${STAGING_INCDIR}"
 
 inherit [% BUILDER_TYPE %]
 
