@@ -20,11 +20,11 @@ with "Packager::Utils::Role::Async", "MooX::Log::Any";
 our $VERSION = '0.001';
 
 option 'bspdir' => (
-    is     => "ro",
+    is     => "lazy",
     format => "s",
     coerce => sub {
         defined $_[0] or return;
-        -d $_[0] or die "$_[0]: $!";
+        -d $_[0] or die "$_[0]: $! - define BBPATH for proper automatism";
         return Cwd::abs_path( $_[0] );
     },
     doc      => "Specify base directory of bitbake",
@@ -34,12 +34,24 @@ option 'bspdir' => (
       . "--bspdir /home/user/bsp",
 );
 
+sub _build_bspdir
+{
+    my $self = shift;
+    my $bspdir;
+    my $layer_conf = read_file( $self->bitbake_bblayers_conf, binmode => 'encoding(UTF-8)' );
+    $layer_conf =~ m/^BSPDIR := "\$\{\@os\.path\.abspath\(os\.path\.dirname\(d\.getVar\('FILE', True\)\) \+ '([^']+)'\)\}"/ms
+      and $bspdir = Cwd::abs_path( File::Spec->catdir( dirname( $self->bitbake_bblayers_conf ), $1 ) )
+      and return $bspdir;
+    return;
+}
+
 option 'bitbake_bblayers_conf' => (
-    is     => "ro",
+    is     => "lazy",
     format => "s",
     coerce => sub {
         defined $_[0] or return;
-        -f $_[0] or die "$_[0]: $!";
+        -f $_[0]
+          or die "The BBPATH variable is not set and pkg_util did not find a conf/bblayers.conf file in the expected location.";
         return Cwd::abs_path( $_[0] );
     },
     doc      => "Specify base path of bblayers.conf file",
@@ -49,16 +61,31 @@ option 'bitbake_bblayers_conf' => (
       . "--bitbake_bblayers_conf /home/user/fsl-community-bsp/yocto/conf/bblayers.conf",
 );
 
+sub _build_bitbake_bblayers_conf
+{
+    my $self = shift;
+    $self->yocto_build_dir or return;
+    File::Spec->catfile( $self->yocto_build_dir, qw(conf bblayers.conf) );
+}
+
 option yocto_build_dir => (
     is     => "lazy",
     format => "s",
-    doc    => "Specify base path of bblayers.conf file",
+    coerce => sub {
+        defined $_[0] or return;
+        -d $_[0] or die "$_[0]: $!";
+        return Cwd::abs_path( $_[0] );
+    },
+    doc      => "Specify base path of conf/bblayers.conf file",
+    long_doc => "Used by BitBake to locate .bbclass and configuration files.\n\n"
+      . "\$ BBPATH = \"<build_directory>\" bitbake < target >",
 );
 
 sub _build_yocto_build_dir
 {
-    my $yoctodir = dirname( dirname( $_[0]->bitbake_bblayers_conf ) );
-    -d $yoctodir or die "$!";
+    my $yoctodir;
+    $ENV{BBPATH} and $yoctodir = $ENV{BBPATH};
+    $yoctodir or $yoctodir = dirname( dirname( $_[0]->bitbake_bblayers_conf ) );
     return $yoctodir;
 }
 
@@ -68,7 +95,7 @@ sub _build_bitbake_cmd
 {
     my $bb_cmd = IPC::Cmd::can_run("bitbake");
     # XXX use attribute for layer paths, find poky and search relative to that
-    $bb_cmd or $bb_cmd = File::Spec->catfile($_[0]->bspdir, qw(sources poky bitbake bin bitbake));
+    $bb_cmd or $bb_cmd = File::Spec->catfile( $_[0]->bspdir, qw(sources poky bitbake bin bitbake) );
     $bb_cmd;
 }
 
@@ -179,7 +206,7 @@ around "_build_packages" => sub {
     my $self     = shift;
     my $packaged = $self->$next(@_);
 
-    my $bspdir           = $self->bspdir() or return;
+    my $bspdir = $self->bspdir() or return;
     my $bitbake_bblayers = $self->bitbake_bblayers_conf();
 
     -d $bspdir or return $packaged;
@@ -365,7 +392,7 @@ sub _create_bitbake_package_info
 
     $pinfo->{DESCRIPTION} =~ s/([^\\])([\\"#])/$1\\$2/g;
 
-    if(length($pinfo->{DESCRIPTION}) > 72)
+    if ( length( $pinfo->{DESCRIPTION} ) > 72 )
     {
         local $Text::Wrap::separator = " \\\n";
         local $Text::Wrap::columns   = 72;
@@ -405,7 +432,7 @@ sub _create_bitbake_package_info
             $dep_det and @{$dep_det} == 1 and $dep_det->[0]->{PKG_NAME} eq "perl" and $req = {
                 PKG_NAME     => $dep_det->[0]->{PKG_NAME},
                 CORE_NAME    => $dep_det->[0]->{PKG_NAME},
-                CORE_VERSION => $dep_det->[0]->{DIST_VERSION},   # XXX numify? -[0-9]*, size matters (see M::B)!
+                CORE_VERSION => $dep_det->[0]->{DIST_VERSION},    # XXX numify? -[0-9]*, size matters (see M::B)!
                 PKG_LOCATION => $dep_det->[0]->{PKG_LOCATION},
                 (
                     defined $dep_det->[0]->{LAST_VERSION} ? ( LAST_VERSION => $dep_det->[0]->{LAST_VERSION} )
@@ -437,10 +464,10 @@ sub _create_bitbake_package_info
         {
             $req = {
                 PKG_NAME     => $dep->{module},
-                REQ_VERSION  => $dep->{version},    # XXX numify? -[0-9]*
+                REQ_VERSION  => $dep->{version},        # XXX numify? -[0-9]*
                 PKG_LOCATION => 'n/a',
-		RELATION     => $dep->{relationship},
-		PHASE        => $dep->{phase},
+                RELATION     => $dep->{relationship},
+                PHASE        => $dep->{phase},
             };
             $dep->{relationship} =~ m/^(?:requires|recommends)$/
               and $dep->{phase} =~ m/^(?:configure|build|test|runtime)$/
@@ -448,7 +475,7 @@ sub _create_bitbake_package_info
             next;
         }
 
-	my ( $ncver, $cvernm );
+        my ( $ncver, $cvernm );
         defined $req->{CORE_NAME}
           and $ncver = scalar( split( qr/\./, $req->{CORE_VERSION} ) )
           and $cvernm = ( $ncver <= 2 ? $req->{CORE_VERSION} . ( ".0" x ( 3 - $ncver ) ) : $req->{CORE_VERSION} ),
@@ -469,7 +496,7 @@ sub _create_bitbake_package_info
           and $req->{CORE_VERSION}
           and next;
 
-	# XXX add additional checks for configure/build phase for M::B(::T?) / EU::CB
+        # XXX add additional checks for configure/build phase for M::B(::T?) / EU::CB
 
         $dep->{phase} eq 'configure'
           and $dep->{relationship} eq 'requires'
@@ -535,19 +562,19 @@ sub _create_bitbake_package_info
     }
 
     %bldreq = map {
-	my $k = $_;
-	my $v = $bldreq{$k};
-	$k =~ m/-perl$/ and $k .= "-native";
-	$v->{PKG_NAME} =~ m/-perl$/ and $v->{PKG_NAME} .= "-native";
-	($k, $v);
+        my $k = $_;
+        my $v = $bldreq{$k};
+        $k =~ m/-perl$/ and $k .= "-native";
+        $v->{PKG_NAME} =~ m/-perl$/ and $v->{PKG_NAME} .= "-native";
+        ( $k, $v );
     } keys %bldreq;
 
     %bldrec = map {
-	my $k = $_;
-	my $v = $bldrec{$k};
-	$k =~ m/-perl$/ and $k .= "-native";
-	$v->{PKG_NAME} =~ m/-perl$/ and $v->{PKG_NAME} .= "-native";
-	($k, $v);
+        my $k = $_;
+        my $v = $bldrec{$k};
+        $k =~ m/-perl$/ and $k .= "-native";
+        $v->{PKG_NAME} =~ m/-perl$/ and $v->{PKG_NAME} .= "-native";
+        ( $k, $v );
     } keys %bldrec;
 
     my %depdefs = (
