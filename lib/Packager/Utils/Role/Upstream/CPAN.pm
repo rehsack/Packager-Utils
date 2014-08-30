@@ -5,7 +5,7 @@ use MooX::Options;
 
 use MetaCPAN::API ();
 
-use Carp qw/croak/;
+use Carp qw/carp croak/;
 use CPAN;
 use CPAN::DistnameInfo;
 use File::Basename qw(fileparse);
@@ -212,9 +212,14 @@ around get_distribution_for_module => sub {
         my $first_core = Module::CoreList->first_release(@mc_qry);
         $first_core or next;
         my ($perl_pkg) = grep { $_->{PKG_NAME} eq "perl" } values %{ $pkgs->{$pkg_type} };
-        my $last_core  = Module::CoreList->removed_from($module);
-        my $depr_core  = Module::CoreList->deprecated_in($module);
-        my %vers_info  = slice_def(
+        unless ($perl_pkg)
+        {
+            carp("No package found matching \"perl\" in $pkg_type");
+            next;
+        }
+        my $last_core = Module::CoreList->removed_from($module);
+        my $depr_core = Module::CoreList->deprecated_in($module);
+        my %vers_info = slice_def(
             {
                 DIST_VERSION => $first_core,
                 LAST_VERSION => $last_core,
@@ -404,8 +409,8 @@ around "create_module_info" => sub {
         PKG4MOD     => $module,
     };
 
-    _ARRAY($minfo->{cpan}->{PKG_LICENSE}) or delete $minfo->{cpan}->{PKG_LICENSE};
-    _ARRAY($minfo->{cpan}->{PKG_LICENSE})
+    _ARRAY( $minfo->{cpan}->{PKG_LICENSE} ) or delete $minfo->{cpan}->{PKG_LICENSE};
+    _ARRAY( $minfo->{cpan}->{PKG_LICENSE} )
       and $minfo->{cpan}->{PKG_LICENSE}->[0] =~ m/(?:unknown|unrestricted|open_source)/i
       and delete $minfo->{cpan}->{PKG_LICENSE};
 
@@ -458,7 +463,7 @@ around "create_module_info" => sub {
     }
 
     $minfo->{cpan}->{PKG_LICENSE} or $minfo->{cpan}->{PKG_LICENSE} = $dist->{license};
-    $minfo->{cpan}->{PKG_DESCR} or $minfo->{cpan}->{PKG_DESCR} = $mod->{description};
+    $minfo->{cpan}->{PKG_DESCR}   or $minfo->{cpan}->{PKG_DESCR}   = $mod->{description};
 
     $dist->{metadata}->{x_breaks} and $minfo->{CONFLICTS} = $dist->{metadata}->{x_breaks};
     $dist->{metadata}->{generated_by}
