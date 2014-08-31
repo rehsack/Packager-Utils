@@ -1,5 +1,10 @@
 package Packager::Utils::Role::Upstream::CPAN;
 
+use strict;
+use warnings;
+
+use 5.014;
+
 use Moo::Role;
 use MooX::Options;
 
@@ -118,7 +123,7 @@ around "init_upstream" => sub {
     $CPAN::Config_loaded
       or croak("Can't load CPAN::Config - please setup CPAN first");
 
-    return 1;
+    1;
 };
 
 has "cpan_versions" => (
@@ -147,17 +152,11 @@ sub _build_cpan_versions
         my ( $distname, $distver ) = ( $dinfo->dist(), $dinfo->version() );
         defined($distname) or next;
         defined($distver)  or next;
-        if (
-            !defined( $versions->{$distname} )
-            || ( defined( $versions->{$distname} )
-                && _is_gt( $distver, $versions->{$distname} ) )
-          )
-        {
-            $versions->{$distname} = $distver;
-        }
+        defined $versions->{$distname} and _is_gt( $distver, $versions->{$distname} ) and $versions->{$distname} = $distver;
+        $versions->{$distname} //= $distver;
     }
 
-    return $versions;
+    $versions;
 }
 
 has cpan_distributions => ( is => "lazy" );
@@ -184,7 +183,7 @@ sub _build_cpan_distributions
         push( @{ $modsbydist{$distname} }, $modname );
     }
 
-    return \%modsbydist;
+    \%modsbydist;
 }
 
 around get_distribution_for_module => sub {
@@ -248,11 +247,8 @@ sub _is_gt
     defined( $_[0] ) and $_[0] =~ /^v/ and $_[1] !~ /^v/ and $_[1] = "v$_[1]";
     defined( $_[0] ) and $_[0] !~ /^v/ and $_[1] =~ /^v/ and $_[0] = "v$_[0]";
     eval { $gt = defined( $_[0] ) && ( version->parse( $_[0] ) > version->parse( $_[1] ) ); };
-    if ($@)
-    {
-        $gt = defined( $_[0] ) && ( $_[0] gt $_[1] );
-    }
-    return $gt;
+    $@ and $gt = defined( $_[0] ) && ( $_[0] gt $_[1] );
+    $gt;
 }
 
 sub _is_ne
@@ -262,11 +258,8 @@ sub _is_ne
     defined( $_[0] ) and $_[0] !~ /^v/ and $_[1] =~ /^v/ and $_[0] = "v$_[0]";
     eval { $ne = defined( $_[0] )
           && ( version->parse( $_[0] ) != version->parse( $_[1] ) ); };
-    if ($@)
-    {
-        $ne = defined( $_[0] ) && ( $_[0] ne $_[1] );
-    }
-    return $ne;
+    $@ and $ne = defined( $_[0] ) && ( $_[0] ne $_[1] );
+    $ne;
 }
 
 around "upstream_up2date_state" => sub {
@@ -314,11 +307,8 @@ around "upstream_up2date_state" => sub {
     {
         defined( $Module::CoreList::version{$]}->{$distmod} ) or next;
         my $mod = $CPAN::META->instance( "CPAN::Module", $distmod );
-        if ( _is_gt( $Module::CoreList::version{$]}->{$distmod}, $mod->cpan_version() ) )
-        {
-            $core_newer{$distmod} =
-              [ $Module::CoreList::version{$]}->{$distmod}, $mod->cpan_version() ];
-        }
+        _is_gt( $Module::CoreList::version{$]}->{$distmod}, $mod->cpan_version() )
+          and $core_newer{$distmod} = [ $Module::CoreList::version{$]}->{$distmod}, $mod->cpan_version() ];
     }
 
     if (%core_newer)
@@ -330,20 +320,11 @@ around "upstream_up2date_state" => sub {
         return $pkg_details->{UPSTREAM_STATE} = $self->STATE_NEWER_IN_CORE;
     }
 
-    if ( !defined($cpan_version) )
-    {
-        return $pkg_details->{UPSTREAM_STATE} = $self->STATE_REMOVED_FROM_INDEX;
-    }
-    elsif ( _is_gt( $cpan_version, $dist_version ) )
-    {
-        return $pkg_details->{UPSTREAM_STATE} = $self->STATE_NEWER_UPSTREAM;
-    }
-    elsif ( _is_ne( $cpan_version, $dist_version ) )
-    {
-        return $pkg_details->{UPSTREAM_STATE} = $self->STATE_OUT_OF_SYNC;
-    }
+    defined($cpan_version) or return $pkg_details->{UPSTREAM_STATE} = $self->STATE_REMOVED_FROM_INDEX;
+    _is_gt( $cpan_version, $dist_version ) and return $pkg_details->{UPSTREAM_STATE} = $self->STATE_NEWER_UPSTREAM;
+    _is_ne( $cpan_version, $dist_version ) and return $pkg_details->{UPSTREAM_STATE} = $self->STATE_OUT_OF_SYNC;
 
-    return $pkg_details->{UPSTREAM_STATE} = $self->STATE_OK;
+    $pkg_details->{UPSTREAM_STATE} = $self->STATE_OK;
 };
 
 my %parsed_checksums;
@@ -368,7 +349,7 @@ sub _cpan_distfile_checksums
         %chksums = ( %chksums, %{$cksum} );
     }
 
-    return $chksums{$uri_file};
+    $chksums{$uri_file};
 }
 
 around "create_module_info" => sub {
@@ -470,7 +451,7 @@ around "create_module_info" => sub {
       and $dist->{metadata}->{generated_by} =~ m/^(.*?) version/
       and $minfo->{cpan}->{GENERATOR} = $1;
 
-    return $minfo;
+    $minfo;
 };
 
 =head1 AUTHOR
