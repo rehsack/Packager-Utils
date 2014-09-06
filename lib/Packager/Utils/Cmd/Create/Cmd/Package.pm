@@ -97,8 +97,8 @@ sub execute
         my @mcat    = @categories;
         defined $categories{$module} and unshift( @mcat, @{ $categories{$module} } );
         # XXX known bug: when it's in core and not packaged, we update perl o.O
-        my $minfo = $self->create_module_info( $module, \@mcat );
-        my $pinfo = $self->create_package_info( $minfo, $pkg_det );
+        my $minfo = $self->prepare_distribution_info( $module, \@mcat );
+        my $pinfo = $self->prepare_package_info( $minfo, $pkg_det );
         push( @pkgs, $pinfo );
     }
 

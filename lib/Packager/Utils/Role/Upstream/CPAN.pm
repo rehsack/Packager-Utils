@@ -352,7 +352,7 @@ sub _cpan_distfile_checksums
     $chksums{$uri_file};
 }
 
-around "create_module_info" => sub {
+around "prepare_distribution_info" => sub {
     my $next  = shift;
     my $self  = shift;
     my $minfo = $self->$next(@_);

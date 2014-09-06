@@ -38,7 +38,9 @@ sub _build_bspdir
 {
     my $self = shift;
     my $bspdir;
-    my $layer_conf = read_file( $self->bitbake_bblayers_conf, binmode => 'encoding(UTF-8)' );
+    my $bblayers_conf = $self->bitbake_bblayers_conf;
+    $bblayers_conf or return;
+    my $layer_conf = read_file( $bblayers_conf, binmode => 'encoding(UTF-8)' );
     $layer_conf =~ m/^BSPDIR := "\$\{\@os\.path\.abspath\(os\.path\.dirname\(d\.getVar\('FILE', True\)\) \+ '([^']+)'\)\}"/ms
       and $bspdir = Cwd::abs_path( File::Spec->catdir( dirname( $self->bitbake_bblayers_conf ), $1 ) )
       and return $bspdir;
@@ -59,6 +61,7 @@ option 'bitbake_bblayers_conf' => (
       . " the base directory for "
       . "bitbake source directory.\n\nExamples: "
       . "--bitbake_bblayers_conf /home/user/fsl-community-bsp/yocto/conf/bblayers.conf",
+    predicate => 1,
 );
 
 sub _build_bitbake_bblayers_conf
@@ -85,7 +88,7 @@ sub _build_yocto_build_dir
 {
     my $yoctodir;
     $ENV{BBPATH} and $yoctodir = $ENV{BBPATH};
-    $yoctodir or $yoctodir = dirname( dirname( $_[0]->bitbake_bblayers_conf ) );
+    $yoctodir or $yoctodir = dirname( dirname( $_[0]->bitbake_bblayers_conf ) ) if $_[0]->has_bitbake_bblayers_conf;
     return $yoctodir;
 }
 
@@ -270,14 +273,14 @@ around "_build_packages" => sub {
     return $packaged;
 };
 
-around "create_package_info" => sub {
+around "prepare_package_info" => sub {
     my $next  = shift;
     my $self  = shift;
     my $pinfo = $self->$next(@_);
 
     my ( $minfo, $pkg_det, $bitbake_pinfo ) = @_;
     defined $minfo->{cpan}
-      and $bitbake_pinfo = $self->_create_bitbake_package_info( $minfo->{cpan}, $pkg_det )
+      and $bitbake_pinfo = $self->_prepare_bitbake_package_info( $minfo->{cpan}, $pkg_det )
       and $pinfo->{bitbake} = $bitbake_pinfo;
 
     return $pinfo;
@@ -309,7 +312,7 @@ my %cpan2bb_licenses = (
 
 my %known_md5s;
 
-sub _create_bitbake_package_info
+sub _prepare_bitbake_package_info
 {
     my ( $self, $minfo, $pkg_det ) = @_;
 

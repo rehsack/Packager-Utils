@@ -353,7 +353,7 @@ Upstream changes since %s:
 %s
 EOUCM
 
-sub _create_pkgsrc_p5_package_info
+sub _prepare_pkgsrc_p5_package_info
 {
     my ( $self, $minfo, $pkg_det ) = @_;
 
@@ -711,14 +711,14 @@ sub _create_pkgsrc_p5_package_info
     return $pinfo;
 }
 
-around "create_package_info" => sub {
+around "prepare_package_info" => sub {
     my $next  = shift;
     my $self  = shift;
     my $pinfo = $self->$next(@_);
 
     my ( $minfo, $pkg_det, $pkgsrc_pinfo ) = @_;
     defined $minfo->{cpan}
-      and $pkgsrc_pinfo = $self->_create_pkgsrc_p5_package_info( $minfo->{cpan}, $pkg_det )
+      and $pkgsrc_pinfo = $self->_prepare_pkgsrc_p5_package_info( $minfo->{cpan}, $pkg_det )
       and $pinfo->{pkgsrc} = $pkgsrc_pinfo;
 
     return $pinfo;
