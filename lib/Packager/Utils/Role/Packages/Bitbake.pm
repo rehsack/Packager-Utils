@@ -273,6 +273,20 @@ around "_build_packages" => sub {
     return $packaged;
 };
 
+around "package_type" => sub {
+    my $next     = shift;
+    my $self     = shift;
+    my $package_type = $self->$next(@_);
+    $package_type and return $package_type;
+
+    my $pkgtype  = shift;
+    my $pkg      = shift;
+
+    $pkgtype eq "bitbake" and $pkg->{PKG_MASTER_SITES} =~ m/cpan/i and return "perl";
+
+    return;
+};
+
 around "prepare_package_info" => sub {
     my $next  = shift;
     my $self  = shift;

@@ -203,9 +203,9 @@ around get_distribution_for_module => sub {
 
     foreach my $pkg_type ( keys %{$pkgs} )
     {
-        # XXX delegate PKG_ related checks to Packages roles!
+	my $pt;
         $cpan_dist and push @found,
-          grep { $_->{DIST_NAME} eq $cpan_dist and $_->{PKG_MASTER_SITES} =~ m/cpan/i } values %{ $pkgs->{$pkg_type} };
+          grep { $_->{DIST_NAME} eq $cpan_dist and $pt = $self->package_type($_,$pkg_type) and $pt eq "perl" } values %{ $pkgs->{$pkg_type} };
         my @mc_qry = ($module);
         defined $mod_version and $mod_version and push( @mc_qry, $mod_version );
         my $first_core = Module::CoreList->first_release(@mc_qry);

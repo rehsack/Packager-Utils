@@ -145,6 +145,12 @@ L<prepared information for distribution|Packager::Utils::Role::Upstream/prepare_
 
 sub prepare_package_info { {} }
 
+=head2 package_type
+
+=cut
+
+sub package_type { }
+
 use MooX::Roles::Pluggable search_path => __PACKAGE__;
 
 =head1 AUTHOR

@@ -314,6 +314,20 @@ sub _get_extra_pkg_details
     return @result;
 }
 
+around "package_type" => sub {
+    my $next     = shift;
+    my $self     = shift;
+    my $package_type = $self->$next(@_);
+    $package_type and return $package_type;
+
+    my $pkgtype  = shift;
+    my $pkg      = shift;
+
+    $pkgtype eq "bitbake" and $pkg->{PKG_NAME} =~ m/^p5-/ and return "perl";
+
+    return;
+};
+
 my %cpan2pkg_licenses = (
                           agpl_3      => 'gnu-agpl-v3',
                           apache_1_1  => 'apache-1.1',
