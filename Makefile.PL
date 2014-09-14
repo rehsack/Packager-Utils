@@ -54,15 +54,13 @@ my %RUN_DEPS = (
     'File::HomeDir' => '1.00',
     'Template'      => '2.20',
     # create/update package
-    'MetaCPAN::API' => 0,
+    'MetaCPAN::Client' => 0,
 );
 my %CONFIGURE_DEPS = (
-    'ExtUtils::MakeMaker' => 0,
+    'ExtUtils::MakeMaker'     => 0,
     'File::ShareDir::Install' => '0.03'
 );
-my %BUILD_DEPS = (
-    'File::ShareDir::Install' => '0.03'
-    );
+my %BUILD_DEPS = ( 'File::ShareDir::Install' => '0.03' );
 
 my %TEST_DEPS = (
     'Test::More' => 0.90,
@@ -73,12 +71,12 @@ WriteMakefile1(
     META_ADD         => {
         'meta-spec' => { version => 2 },
         resources   => {
-                       repository => {
-                                       url  => 'git://github.com/rehsack/Packager-Utils.git',
-                                       web  => 'https://github.com/rehsack/Packager-Utils',
-                                       type => 'git',
-                                     },
-            license    => 'http://dev.perl.org/licenses/',
+            repository => {
+                url  => 'git://github.com/rehsack/Packager-Utils.git',
+                web  => 'https://github.com/rehsack/Packager-Utils',
+                type => 'git',
+            },
+            license => 'http://dev.perl.org/licenses/',
         },
         prereqs => {
             develop => {
@@ -96,13 +94,16 @@ WriteMakefile1(
             build   => { requires => {%BUILD_DEPS} },
             test    => { requires => {%TEST_DEPS} },
             runtime => {
-                requires => {
-                    %RUN_DEPS,
-                },
+                requires   => { %RUN_DEPS, },
                 recommends => {
-                                'Log::Dispatch'               => 0,
-                                'Log::Any::Adapter::Dispatch' => 0,
-                              },
+                    'Log::Dispatch'               => 0,
+                    'Log::Any::Adapter::Dispatch' => 0,
+                    # to allow most recent MetaCPAN::Client to cache
+                    'CHI'                    => 0,
+                    'HTTP::Tiny::Mech'       => 0,
+                    'MetaCPAN::Client'       => '1.007000',
+                    'WWW::Mechanize::Cached' => 0,
+                },
             },
         },
     },
@@ -110,7 +111,7 @@ WriteMakefile1(
     VERSION_FROM   => 'lib/Packager/Utils.pm',
     ABSTRACT_FROM  => 'lib/Packager/Utils.pm',
     LICENSE        => 'perl',
-    AUTHOR         => [ q{Jens Rehsack <rehsack@cpan.org>} ],
+    AUTHOR         => [q{Jens Rehsack <rehsack@cpan.org>}],
     PREREQ_PM      => \%RUN_DEPS,
     BUILD_REQUIRES => \%BUILD_DEPS,
     TEST_REQUIRES  => \%TEST_DEPS,

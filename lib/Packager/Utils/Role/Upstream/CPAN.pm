@@ -8,7 +8,7 @@ use 5.014;
 use Moo::Role;
 use MooX::Options;
 
-use MetaCPAN::API ();
+use MetaCPAN::Client ();
 
 use Carp qw/carp croak/;
 use CPAN;
@@ -18,6 +18,7 @@ use File::Spec qw();
 use HTTP::Tiny qw();
 use Hash::MoreUtils qw(slice_def);
 use Module::CoreList;
+use Module::Runtime qw/require_module use_module module_notional_filename/;
 use Params::Util qw(_ARRAY);
 use Pod::Select qw();
 use Pod::Text qw();
@@ -352,6 +353,43 @@ sub _cpan_distfile_checksums
     $chksums{$uri_file};
 }
 
+has chi_init => ( is => "lazy" );
+
+sub _build_chi_init
+{
+    my %chi_args = (
+        driver   => 'File',
+        root_dir => '/tmp/metacpan-cache',
+    );
+    return \%chi_args;
+}
+
+has _meta_cpan => (
+    is       => "lazy",
+    init_arg => undef,
+);
+
+sub _build__meta_cpan
+{
+    my $self = shift;
+    require_module("MetaCPAN::Client");
+    my %ua;
+    eval {
+        use_module("CHI");
+        use_module("WWW::Mechanize::Cached");
+        use_module("HTTP::Tiny::Mech");
+        %ua = (
+            ua => HTTP::Tiny::Mech->new(
+                mechua => WWW::Mechanize::Cached->new(
+                    cache => CHI->new( %{ $self->chi_init } ),
+                )
+            )
+        );
+    };
+    my $mcpan = MetaCPAN::Client->new(%ua);
+    return $mcpan;
+}
+
 around "prepare_distribution_info" => sub {
     my $next  = shift;
     my $self  = shift;
@@ -360,12 +398,13 @@ around "prepare_distribution_info" => sub {
     my $module     = shift;
     my $categories = shift;
 
-    my ( $mod, $dist, $changes, $pod );
+    my ( $mod, $dist, $release, $changes, $pod );
     eval {
-        my $mcpan = MetaCPAN::API->new();
+        my $mcpan = $self->_meta_cpan;
         $mod     = $mcpan->module($module);
-        $dist    = $mcpan->release( distribution => $mod->{distribution} );
-        $changes = $mcpan->fetch( "/changes/" . $mod->{distribution} );
+        $release = $mcpan->release( $mod->distribution );
+        $dist    = $mcpan->distribution( $mod->distribution );
+        $changes = $mcpan->fetch( "/changes/" . $mod->distribution );
         $pod     = $mcpan->pod(
             module         => $module,
             "content-type" => "text/x-pod"
@@ -377,15 +416,15 @@ around "prepare_distribution_info" => sub {
     # fetch -o - http://api.metacpan.org/v0/pod/Module::Build?content-type=text/x-pod | podselect -s DESCRIPTION | pod2text
 
     $minfo->{cpan} = {
-        DIST_NAME   => $dist->{name},
-        DIST        => $dist->{distribution},
-        DIST_FILE   => $dist->{archive},
-        DIST_URL    => $dist->{download_url},
-        DIST_VER    => $dist->{version},
+        DIST_NAME   => $release->name,
+        DIST        => $release->distribution,
+        DIST_FILE   => $release->archive,
+        DIST_URL    => $release->download_url,
+        DIST_VER    => $release->version,
         CATEGORIES  => $categories,
-        PKG_LICENSE => $dist->{license},
-        PKG_COMMENT => $dist->{abstract},
-        PKG_PREREQ  => $dist->{dependency},
+        PKG_LICENSE => $release->license,
+        PKG_COMMENT => $release->abstract,
+        PKG_PREREQ  => $release->dependency,
         PKG_CHANGES => $changes->{content},
         PKG4MOD     => $module,
     };
@@ -443,12 +482,13 @@ around "prepare_distribution_info" => sub {
         $pod_selected =~ m/the same (terms?|licenses?) as Perl itself/i and $minfo->{cpan}->{PKG_LICENSE} = ['perl_5'];
     }
 
-    $minfo->{cpan}->{PKG_LICENSE} or $minfo->{cpan}->{PKG_LICENSE} = $dist->{license};
-    $minfo->{cpan}->{PKG_DESCR}   or $minfo->{cpan}->{PKG_DESCR}   = $mod->{description};
+    $minfo->{cpan}->{PKG_LICENSE} or $minfo->{cpan}->{PKG_LICENSE} = $release->license;
+    $minfo->{cpan}->{PKG_DESCR}   or $minfo->{cpan}->{PKG_DESCR}   = $mod->description;
 
-    $dist->{metadata}->{x_breaks} and $minfo->{CONFLICTS} = $dist->{metadata}->{x_breaks};
-    $dist->{metadata}->{generated_by}
-      and $dist->{metadata}->{generated_by} =~ m/^(.*?) version/
+    # XXX they seem to be missing via $mcpan->release call
+    $release->{metadata}->{x_breaks} and $minfo->{CONFLICTS} = $release->{metadata}->{x_breaks};
+    $release->{metadata}->{generated_by}
+      and $release->{metadata}->{generated_by} =~ m/^(.*?) version/
       and $minfo->{cpan}->{GENERATOR} = $1;
 
     $minfo;
