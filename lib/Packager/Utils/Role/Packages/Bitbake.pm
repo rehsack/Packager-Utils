@@ -209,7 +209,7 @@ around "_build_packages" => sub {
     my $self     = shift;
     my $packaged = $self->$next(@_);
 
-    my $bspdir = $self->bspdir() or return;
+    my $bspdir = $self->bspdir() or return $packaged;
     my $bitbake_bblayers = $self->bitbake_bblayers_conf();
 
     -d $bspdir or return $packaged;
@@ -279,8 +279,8 @@ around "package_type" => sub {
     my $package_type = $self->$next(@_);
     $package_type and return $package_type;
 
-    my $pkgtype  = shift;
     my $pkg      = shift;
+    my $pkgtype  = shift;
 
     $pkgtype eq "bitbake" and $pkg->{PKG_MASTER_SITES} =~ m/cpan/i and return "perl";
 

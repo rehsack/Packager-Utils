@@ -320,10 +320,10 @@ around "package_type" => sub {
     my $package_type = $self->$next(@_);
     $package_type and return $package_type;
 
-    my $pkgtype  = shift;
     my $pkg      = shift;
+    my $pkgtype  = shift;
 
-    $pkgtype eq "bitbake" and $pkg->{PKG_NAME} =~ m/^p5-/ and return "perl";
+    $pkgtype eq "pkgsrc" and $pkg->{PKG_NAME} =~ m/^p5-/ and return "perl";
 
     return;
 };
