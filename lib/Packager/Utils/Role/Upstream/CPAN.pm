@@ -404,10 +404,7 @@ around "prepare_distribution_info" => sub {
         $release = $mcpan->release( $mod->distribution );
         $dist    = $mcpan->distribution( $mod->distribution );
         $changes = $mcpan->fetch( "/changes/" . $mod->distribution );
-        $pod     = $mcpan->pod(
-            module         => $module,
-            "content-type" => "text/x-pod"
-        );
+        $pod     = $mcpan->pod($module)->x_pod;
     };
     $self->log->emergency("$@ for $module") and return $minfo if $@;
 
