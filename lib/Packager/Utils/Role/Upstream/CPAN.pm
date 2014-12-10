@@ -406,7 +406,12 @@ around "prepare_distribution_info" => sub {
         $changes = $mcpan->fetch( "/changes/" . $mod->distribution );
         $pod     = $mcpan->pod($module)->x_pod;
     };
-    $self->log->emergency("$@ for $module") and return $minfo if $@;
+    my $err = $@;
+    if($err)
+    {
+	$self->log->emergency("$err for $module");
+	return $minfo;
+    }
 
     defined $minfo or $minfo = {};
     # fetch -o - http://api.metacpan.org/v0/pod/Module::Build?content-type=text/x-pod | podselect -s DESCRIPTION | pod2text
