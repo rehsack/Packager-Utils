@@ -441,37 +441,24 @@ sub _prepare_bitbake_package_info
         if ( $dep_dist && $dep_dist->{cpan} && $dep_dist->{cpan}->{ $dep->{module} } )
         {
             my $dep_det = $dep_dist->{cpan}->{ $dep->{module} };
-            $dep_det and @{$dep_det} == 1 and $dep_det->[0]->{PKG_NAME} ne "perl" and $req = {
+	    $dep_det and my ($in_core) = grep { exists $_->{FIRST_VERSION} } @$dep_det;
+            $dep_det and not $in_core and $req = {
                 PKG_NAME     => $dep_det->[0]->{PKG_NAME},
                 REQ_VERSION  => $dep->{version},                 # XXX numify? -[0-9]*, size matters (see M::B)!
                 PKG_LOCATION => $dep_det->[0]->{PKG_LOCATION},
             };
-            $dep_det and @{$dep_det} == 1 and $dep_det->[0]->{PKG_NAME} eq "perl" and $req = {
-                PKG_NAME     => $dep_det->[0]->{PKG_NAME},
-                CORE_NAME    => $dep_det->[0]->{PKG_NAME},
-                CORE_VERSION => $dep_det->[0]->{DIST_VERSION},    # XXX numify? -[0-9]*, size matters (see M::B)!
-                PKG_LOCATION => $dep_det->[0]->{PKG_LOCATION},
-                (
-                    defined $dep_det->[0]->{LAST_VERSION} ? ( LAST_VERSION => $dep_det->[0]->{LAST_VERSION} )
-                    : (),
-                ),
-                (
-                    defined $dep_det->[0]->{DEPR_VERSION} ? ( DEPR_VERSION => $dep_det->[0]->{DEPR_VERSION} )
-                    : (),
-                ),
-            };
 
-            $dep_det and @{$dep_det} > 1 and $req = {
+            $dep_det and $in_core and $req = {
                 PKG_NAME     => $dep_det->[0]->{PKG_NAME},
                 REQ_VERSION  => $dep->{version},                  # XXX numify? -[0-9]*, size matters (see M::B)!
-                CORE_NAME    => $dep_det->[1]->{PKG_NAME},        # XXX find lowest reqd. Perl5 version!
-                CORE_VERSION => $dep_det->[1]->{DIST_VERSION},    # XXX find lowest reqd. Perl5 version!
+                CORE_NAME    => $in_core->{PKG_NAME},        # XXX find lowest reqd. Perl5 version!
+                CORE_VERSION => $in_core->{FIRST_VERSION},    # XXX find lowest reqd. Perl5 version!
                 (
-                    defined $dep_det->[1]->{LAST_VERSION} ? ( LAST_VERSION => $dep_det->[1]->{LAST_VERSION} )
+                    defined $in_core->{LAST_VERSION} ? ( LAST_VERSION => $in_core->{LAST_VERSION} )
                     : (),
                 ),
                 (
-                    defined $dep_det->[1]->{DEPR_VERSION} ? ( DEPR_VERSION => $dep_det->[1]->{DEPR_VERSION} )
+                    defined $in_core->{DEPR_VERSION} ? ( DEPR_VERSION => $in_core->{DEPR_VERSION} )
                     : (),
                 ),
                 PKG_LOCATION => $dep_det->[0]->{PKG_LOCATION},
