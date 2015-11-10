@@ -105,7 +105,7 @@ sub _build_bitbake_cmd
 has '_bb_var_names' => (
     is      => 'ro',
     default => sub {
-        return [ qw(DISTRO_NAME SRC_URI DISTRO_VERSION), qw(PN PV PR FILE_DIRNAME MAINTAINER), qw(HOMEPAGE LICENSE) ];
+        return [ qw(PN PV PR FILE_DIRNAME MAINTAINER SRC_URI HOMEPAGE LICENSE) ];
     },
     init_arg => undef
 );
@@ -180,6 +180,7 @@ sub _fetch_full_bb_details
         sub {
             my %pkg_vars;
             _HASH( $_[0] ) and %pkg_vars = %{ $_[0] };
+	    defined $pkg_vars{SRC_URI} or return $cb->();
 
             my %pkg_details;
 
@@ -254,7 +255,6 @@ around "_build_packages" => sub {
         $self->_fetch_full_bb_details(
             $file,
             sub {
-
                 my $pkg_det = shift;
                 --$pds;
                 _HASH($pkg_det)
