@@ -11,6 +11,8 @@ use File::Find::Rule;
 use File::Basename;
 use File::Slurp::Tiny 'read_file';
 use Params::Util qw(_ARRAY _ARRAY0 _HASH _HASH0 _STRING);
+use URI qw();
+use URI::Split qw(uri_split uri_join);
 use Text::Wrap qw(wrap);
 
 # make it optional - with cache only ...
@@ -185,18 +187,19 @@ sub _fetch_full_bb_details
             my %pkg_details;
 
             #... mapping
-            $pkg_details{DIST_NAME} = fileparse( ( split( /\s+/, $pkg_vars{SRC_URI} ) )[0], @{ $self->_archive_extensions } );
+            my @split_uri = uri_split($pkg_vars{SRC_URI});
+	    my @parsed_path = fileparse( ( split( /\s+/, $split_uri[2] ) )[0], @{ $self->_archive_extensions } );
+	    $pkg_details{DIST_NAME} = $parsed_path[0];
             $pkg_details{DIST_NAME} =~ m/^(.*)-(v?[0-9].*?)$/ and ( @pkg_details{qw(DIST_NAME DIST_VERSION)} ) = ( $1, $2 );
             defined $pkg_details{DIST_VERSION} or $pkg_details{DIST_VERSION} = $pkg_vars{PV};
-            $pkg_details{DIST_FILE}      = ( fileparse( ( split( /\s+/, $pkg_vars{SRC_URI} ) )[0] ) )[0];
+            $pkg_details{DIST_FILE}      = ( fileparse( ( split( /\s+/, $split_uri[2] ) )[0] ) )[0];
             $pkg_details{PKG_NAME}       = $pkg_vars{PN};
             $pkg_details{PKG_VERSION}    = defined $pkg_vars{PR} ? join( "-", @pkg_vars{ "PV", "PR" } ) : $pkg_vars{PV};
             $pkg_details{PKG_MAINTAINER} = $pkg_vars{MAINTAINER};
             $pkg_details{PKG_LOCATION}   = File::Spec->catfile( $pkg_vars{FILE_DIRNAME}, $bbfile );
             $pkg_details{PKG_HOMEPAGE}   = $pkg_vars{HOMEPAGE};
             $pkg_details{PKG_LICENSE}    = $pkg_vars{LICENSE};
-            $pkg_details{PKG_MASTER_SITES} =
-              ( fileparse( ( split( /\s+/, $pkg_vars{SRC_URI} ) )[0], @{ $self->_archive_extensions } ) )[1];
+            $pkg_details{PKG_MASTER_SITES} = uri_join($split_uri[0], $split_uri[1], $parsed_path[1]);
 
             $cb->( \%pkg_details );
         }
