@@ -678,7 +678,8 @@ sub _prepare_pkgsrc_p5_package_info
         my @extra_details = $self->_get_extra_pkg_details( $pkg_det->{PKG_LOCATION}, @extra_keys );
         $pkg_det->{extra} = { zip @extra_keys, @extra_details };
 
-        my $changes  = CPAN::Changes->load_string( $minfo->{PKG_CHANGES} );
+        # XXX pay attention for missing changes
+	my $changes  = CPAN::Changes->load_string( $minfo->{PKG_CHANGES} );
         my $dv       = version->parse( $pkg_det->{DIST_VERSION} );
         my @releases = grep { $dv < $_->version } $changes->releases;
         $changes->{releases} = {};    # XXX clear_releases
