@@ -107,7 +107,7 @@ sub _build_bitbake_cmd
 has '_bb_var_names' => (
     is      => 'ro',
     default => sub {
-        return [ qw(PN PV PR FILE_DIRNAME MAINTAINER SRC_URI HOMEPAGE LICENSE) ];
+        return [qw(PN PV PR FILE_DIRNAME MAINTAINER SRC_URI HOMEPAGE LICENSE)];
     },
     init_arg => undef
 );
@@ -182,24 +182,24 @@ sub _fetch_full_bb_details
         sub {
             my %pkg_vars;
             _HASH( $_[0] ) and %pkg_vars = %{ $_[0] };
-	    defined $pkg_vars{SRC_URI} or return $cb->();
+            defined $pkg_vars{SRC_URI} or return $cb->();
 
             my %pkg_details;
 
             #... mapping
-            my @split_uri = uri_split($pkg_vars{SRC_URI});
-	    my @parsed_path = fileparse( ( split( /\s+/, $split_uri[2] ) )[0], @{ $self->_archive_extensions } );
-	    $pkg_details{DIST_NAME} = $parsed_path[0];
+            my @split_uri = uri_split( $pkg_vars{SRC_URI} );
+            my @parsed_path = fileparse( ( split( /\s+/, $split_uri[2] ) )[0], @{ $self->_archive_extensions } );
+            $pkg_details{DIST_NAME} = $parsed_path[0];
             $pkg_details{DIST_NAME} =~ m/^(.*)-(v?[0-9].*?)$/ and ( @pkg_details{qw(DIST_NAME DIST_VERSION)} ) = ( $1, $2 );
             defined $pkg_details{DIST_VERSION} or $pkg_details{DIST_VERSION} = $pkg_vars{PV};
-            $pkg_details{DIST_FILE}      = ( fileparse( ( split( /\s+/, $split_uri[2] ) )[0] ) )[0];
-            $pkg_details{PKG_NAME}       = $pkg_vars{PN};
-            $pkg_details{PKG_VERSION}    = defined $pkg_vars{PR} ? join( "-", @pkg_vars{ "PV", "PR" } ) : $pkg_vars{PV};
-            $pkg_details{PKG_MAINTAINER} = $pkg_vars{MAINTAINER};
-            $pkg_details{PKG_LOCATION}   = File::Spec->catfile( $pkg_vars{FILE_DIRNAME}, $bbfile );
-            $pkg_details{PKG_HOMEPAGE}   = $pkg_vars{HOMEPAGE};
-            $pkg_details{PKG_LICENSE}    = $pkg_vars{LICENSE};
-            $pkg_details{PKG_MASTER_SITES} = uri_join($split_uri[0], $split_uri[1], $parsed_path[1]);
+            $pkg_details{DIST_FILE}        = ( fileparse( ( split( /\s+/, $split_uri[2] ) )[0] ) )[0];
+            $pkg_details{PKG_NAME}         = $pkg_vars{PN};
+            $pkg_details{PKG_VERSION}      = defined $pkg_vars{PR} ? join( "-", @pkg_vars{ "PV", "PR" } ) : $pkg_vars{PV};
+            $pkg_details{PKG_MAINTAINER}   = $pkg_vars{MAINTAINER};
+            $pkg_details{PKG_LOCATION}     = File::Spec->catfile( $pkg_vars{FILE_DIRNAME}, $bbfile );
+            $pkg_details{PKG_HOMEPAGE}     = $pkg_vars{HOMEPAGE};
+            $pkg_details{PKG_LICENSE}      = $pkg_vars{LICENSE};
+            $pkg_details{PKG_MASTER_SITES} = uri_join( $split_uri[0], $split_uri[1], $parsed_path[1] );
 
             $cb->( \%pkg_details );
         }
@@ -208,26 +208,55 @@ sub _fetch_full_bb_details
     return;
 }
 
+has oe_layers => ( is => 'lazy' );
+
+sub _build_oe_layers
+{
+    my $self = shift;
+
+    #get bblayers file
+    my $bitbake_bblayers = $self->bitbake_bblayers_conf();
+    my $layer_conf       = read_file( $bitbake_bblayers, binmode => 'encoding(UTF-8)' );
+    my $tag              = "{BSPDIR}";
+    my $bspdir           = $self->bspdir();
+
+    # XXX extract into attribute
+    my @layer_paths;
+    my %layer_prios;
+    while ( $layer_conf =~ m/\Q$tag\E([^ ]+)/g )
+    {
+        my $layer_dir = File::Spec->catdir( $bspdir, $1 );
+
+        my $layer_conf_path = File::Spec->catfile( $layer_dir, qw(conf layer.conf) );
+        -f $layer_conf_path or next;
+
+        my $layer_conf = read_file( $layer_conf_path, binmode => 'encoding(UTF-8)' );
+        my $layer_name;
+        $layer_conf =~ m/BBFILE_COLLECTIONS\s+\+=\s+"([^"]+)"/msx and $layer_name = $1;
+
+        my $layer_prio;
+        $layer_conf =~ m/BBFILE_PRIORITY_$layer_name\s+=\s+"(\d+)"/msx and $layer_prio = $1;
+        $layer_prio or next;
+
+        $layer_prios{$layer_dir} = $layer_prio;
+
+        push @layer_paths, $layer_dir;
+    }
+
+    [ sort { $layer_prios{$b} <=> $layer_prios{$a} } @layer_paths ];
+}
+
 around "_build_packages" => sub {
     my $next     = shift;
     my $self     = shift;
     my $packaged = $self->$next(@_);
 
     my $bspdir = $self->bspdir() or return $packaged;
-    my $bitbake_bblayers = $self->bitbake_bblayers_conf();
 
     -d $bspdir or return $packaged;
 
-    #get bblayers file
-    my $layer_conf = read_file( $bitbake_bblayers, binmode => 'encoding(UTF-8)' );
-    my $tag = "{BSPDIR}";
-
     # XXX extract into attribute
-    my @src_paths;
-    while ( $layer_conf =~ m/\Q$tag\E([^ ]+)/g )
-    {
-        push @src_paths, File::Spec->catdir( $bspdir, $1 );
-    }
+    my @src_paths = @{ $self->oe_layers };
 
     my %find_args = (
         mindepth => 3,
@@ -277,13 +306,13 @@ around "_build_packages" => sub {
 };
 
 around "package_type" => sub {
-    my $next     = shift;
-    my $self     = shift;
+    my $next         = shift;
+    my $self         = shift;
     my $package_type = $self->$next(@_);
     $package_type and return $package_type;
 
-    my $pkg      = shift;
-    my $pkgtype  = shift;
+    my $pkg     = shift;
+    my $pkgtype = shift;
 
     $pkgtype eq "bitbake" and $pkg->{PKG_MASTER_SITES} =~ m/cpan/i and return "perl";
 
@@ -303,31 +332,100 @@ around "prepare_package_info" => sub {
     return $pinfo;
 };
 
-my %cpan2bb_licenses = (
-    agpl_3      => ['AGPL-3.0'],
+my %cpan2spdx_licenses = (
+    agpl_3      => ['AGPLv3'],
     apache_1_1  => ['Apache-1.1'],
-    apache_2_0  => ['Apache-2.0'],
-    artistic_1  => ['Artistic-1.0'],
+    apache_2_0  => ['Apachev2'],
+    artistic_1  => ['Artisticv1'],
     artistic_2  => ['Artistic-2.0'],
     bsd         => ['BSD-3-Clause'],
     freebsd     => ['BSD-2-Clause'],
     gfdl_1_2    => ['GFDL-1.2'],
     gfdl_1_3    => ['GFDL-1.3'],
-    gpl_1       => ['GPL-1.0'],
-    gpl_2       => ['GPL-2.0'],
-    gpl_3       => ['GPL-3.0'],
-    lgpl_2_1    => ['LGPL-2.1'],
-    lgpl_3_0    => ['LGPL-3.0'],
+    gpl_1       => ['GPLv1'],
+    gpl_2       => ['GPLv2'],
+    gpl_3       => ['GPLv3'],
+    lgpl_2_1    => ['LGPLv2.1'],
+    lgpl_3_0    => ['LGPLv3'],
     mit         => ['MIT'],
-    mozilla_1_0 => ['MPL-1.0'],
-    mozilla_1_1 => ['MPL-1.1'],
+    mozilla_1_0 => ['MPLv1'],
+    mozilla_1_1 => ['MPLv1.1'],
     openssl     => ['OpenSSL'],
-    perl_5      => [ 'Artistic-1.0', 'GPL-2.0' ],
+    perl_5      => [ 'Artisticv1', 'GPLv1+' ],
     qpl_1_0     => ['QPL-1.0'],
     zlib        => ['Zlib'],
 );
 
+has spdx_license_map => ( is => "lazy" );
+
+sub _build_spdx_license_map
+
+{
+    my $self = shift;
+
+    my %spdx_license_map;
+
+    my @src_paths = map { File::Spec->catdir( $_, 'conf' ) } @{ $self->oe_layers };
+    my @lic_cnfs = find(
+        file => name => "licenses.conf",
+        in   => \@src_paths
+    );
+
+    foreach my $lic_cnf (@lic_cnfs)
+    {
+        my $lic_cnf_cnt = read_file( $lic_cnf, binmode => 'encoding(UTF-8)' );
+        # SPDXLICENSEMAP[AGPL-3] = "AGPL-3.0"
+        while ( $lic_cnf_cnt =~ m/SPDXLICENSEMAP\[([^\]]+)\]\s+=\s+"([^"]+)"/msxg )
+        {
+            $spdx_license_map{$1} = $2;
+        }
+    }
+
+    \%spdx_license_map;
+}
+
 my %known_md5s;
+
+has oe_license_dirs => ( is => "lazy" );
+
+sub _build_oe_license_dirs
+{
+    my $self = shift;
+    # there will be more ...
+    [ File::Spec->catfile( $self->bspdir, qw(sources poky meta files common-licenses) ) ];
+}
+
+sub _oe_license_md5sum
+{
+    my $self    = shift;
+    my $license = shift;
+
+    $license =~ s/\+$//;
+    unless ( defined $known_md5s{$license} )
+    {
+        defined $self->spdx_license_map->{$license} and $license = $self->spdx_license_map->{$license};
+
+        my @src_paths = @{ $self->oe_license_dirs };
+        my ($lic_file) = find(
+            file => name => $license,
+            in   => \@src_paths
+        );
+
+        if ( $lic_file && -f $lic_file )
+        {
+            my $ctx  = Digest::MD5->new();
+            my $data = read_file($lic_file);
+            $ctx->add($data);
+            $known_md5s{$license} = "file://\${COMMON_LICENSE_DIR}/$license;md5=" . $ctx->hexdigest;
+        }
+        else
+        {
+            $known_md5s{$license} = "unknown($license)";
+        }
+    }
+
+    $known_md5s{$license};
+}
 
 sub _prepare_bitbake_package_info
 {
@@ -343,7 +441,7 @@ sub _prepare_bitbake_package_info
         DIST_NAME  => $minfo->{DIST_NAME},
         CATEGORIES => $minfo->{CATEGORIES},
         LICENSE    => join( " | ",
-            map { ( $cpan2bb_licenses{$_} ? @{ $cpan2bb_licenses{$_} } : ("unknown($_)") ) }
+            map { ( $cpan2spdx_licenses{$_} ? @{ $cpan2spdx_licenses{$_} } : ("unknown($_)") ) }
               @{ _ARRAY( $minfo->{PKG_LICENSE} ) // [ $minfo->{PKG_LICENSE} ] } ),
         HOMEPAGE        => 'https://metacpan.org/release/' . $minfo->{DIST},
         MAINTAINER      => 'Poky <poky@yoctoproject.org>',
@@ -359,24 +457,9 @@ sub _prepare_bitbake_package_info
     $pinfo->{LICENSE_FILES} = join(
         " \\\n",
         map {
-            (
-                $cpan2bb_licenses{$_}
-                ? (
-                    map {
-                        my $l = $_;
-                        my $fqln = File::Spec->catfile( $self->bspdir, qw(sources poky meta files common-licenses), $l );
-                        unless ( defined $known_md5s{$fqln} )
-                        {
-                            my $ctx  = Digest::MD5->new();
-                            my $data = read_file($fqln);
-                            $ctx->add($data);
-                            $known_md5s{$fqln} = $ctx->hexdigest;
-                        }
-                        "file://\${COMMON_LICENSE_DIR}/$l;md5=$known_md5s{$fqln}";
-                    } @{ $cpan2bb_licenses{$_} }
-                  )
-                : ("unknown($_)")
-              )
+            $cpan2spdx_licenses{$_}
+              ? ( map { $self->_oe_license_md5sum($_) } @{ $cpan2spdx_licenses{$_} } )
+              : ( $self->_oe_license_md5sum($_) )
         } @{ _ARRAY( $minfo->{PKG_LICENSE} ) // [ $minfo->{PKG_LICENSE} ] }
     );
 
@@ -410,12 +493,14 @@ sub _prepare_bitbake_package_info
         $pinfo->{DESCRIPTION} = "Perl module for " . $minfo->{PKG4MOD};
     }
 
-    $pinfo->{DESCRIPTION} =~ s/([^\\])([\\"#])/$1\\$2/g;
+    $pinfo->{DESCRIPTION} =~ s/(^|[^\\])([\\])/$1\\$2/g;
+    $pinfo->{DESCRIPTION} =~ s/\n/ /msg;
+    $pinfo->{DESCRIPTION} =~ s/(\w)\s+(\w)/$1 $2/msg;
 
     if ( length( $pinfo->{DESCRIPTION} ) > 72 )
     {
         local $Text::Wrap::separator = " \\\n";
-        local $Text::Wrap::columns   = 72;
+        local $Text::Wrap::columns   = 76;
         $pinfo->{DESCRIPTION} = wrap( "", "", $pinfo->{DESCRIPTION} );
     }
 
@@ -444,7 +529,7 @@ sub _prepare_bitbake_package_info
         if ( $dep_dist && $dep_dist->{cpan} && $dep_dist->{cpan}->{ $dep->{module} } )
         {
             my $dep_det = $dep_dist->{cpan}->{ $dep->{module} };
-	    $dep_det and my ($in_core) = grep { exists $_->{FIRST_VERSION} } @$dep_det;
+            $dep_det and my ($in_core) = grep { exists $_->{FIRST_VERSION} } @$dep_det;
             $dep_det and not $in_core and $req = {
                 PKG_NAME     => $dep_det->[0]->{PKG_NAME},
                 REQ_VERSION  => $dep->{version},                 # XXX numify? -[0-9]*, size matters (see M::B)!
@@ -453,9 +538,9 @@ sub _prepare_bitbake_package_info
 
             $dep_det and $in_core and $req = {
                 PKG_NAME     => $dep_det->[0]->{PKG_NAME},
-                REQ_VERSION  => $dep->{version},                  # XXX numify? -[0-9]*, size matters (see M::B)!
-                CORE_NAME    => $in_core->{PKG_NAME},        # XXX find lowest reqd. Perl5 version!
-                CORE_VERSION => $in_core->{FIRST_VERSION},    # XXX find lowest reqd. Perl5 version!
+                REQ_VERSION  => $dep->{version},                 # XXX numify? -[0-9]*, size matters (see M::B)!
+                CORE_NAME    => $in_core->{PKG_NAME},            # XXX find lowest reqd. Perl5 version!
+                CORE_VERSION => $in_core->{FIRST_VERSION},       # XXX find lowest reqd. Perl5 version!
                 (
                     defined $in_core->{LAST_VERSION} ? ( LAST_VERSION => $in_core->{LAST_VERSION} )
                     : (),
