@@ -21,4 +21,4 @@ line.PKG_LOCATION %]: [% BUILD_COMMENT(line); %]
 [% END %]
 [% COUNT.ENTIRE %] Perl5 distributions packaged, [% COUNT.UP2DATE %] up to date, [% COUNT.NEED_UPDATE %] needs update, [% COUNT.NEED_CHECK %] need further investigation
 
-Powered by Packaging::Tools
+Powered by Packager::Utils

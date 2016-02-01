@@ -37,5 +37,5 @@
   <p>
     [% COUNT.ENTIRE %] Perl5 distributions packaged, [% COUNT.UP2DATE %] up to date, [% COUNT.NEED_UPDATE %] needs update, [% COUNT.NEED_CHECK %] need further investigation
   </p>
-  <p>Powered by <a href="http://search.cpan.org/dist/Packging-Tools/">Packaging::Tools</a></p>
+  <p>Powered by <a href="https://github.com/rehsack/Packager-Utils.git">Packager::Utils</a></p>
 </body>
