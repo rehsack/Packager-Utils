@@ -50,6 +50,8 @@ my %RUN_DEPS = (
     'Cwd'               => 0,
     'IO::CaptureOutput' => 0,
     'File::pushd'       => 0,
+    # bitbake backend
+    'URI::Simple'       => 0,
     # template role
     'File::HomeDir' => '1.00',
     'Template'      => '2.20',
