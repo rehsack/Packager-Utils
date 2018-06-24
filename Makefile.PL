@@ -57,6 +57,7 @@ my %RUN_DEPS = (
     'Template'      => '2.20',
     # create/update package
     'MetaCPAN::Client' => 0,
+    'LWP::Protocol::https' => 0,
 );
 my %CONFIGURE_DEPS = (
     'ExtUtils::MakeMaker'     => 0,
