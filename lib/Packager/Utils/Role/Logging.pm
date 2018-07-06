@@ -7,16 +7,18 @@ use Class::Load qw(load_class);
 
 with "MooX::Log::Any";
 
-option log_adapter => (
-                        is       => "ro",
-                        required => 1,
-                        trigger  => 1
-                      );
+has log_adapter => (
+    is       => "ro",
+    required => 1,
+    trigger  => 1,
+);
+
+my $guard;
 
 sub _trigger_log_adapter
 {
-    my ( $self, $opts ) = @_;
-    load_class("Log::Any::Adapter")->set( @{$opts} );
+    my ($self, $opts) = @_;
+    $guard and return;
+    load_class("Log::Any::Adapter")->set({lexically => \$guard}, @{$opts});
 }
-
 1;

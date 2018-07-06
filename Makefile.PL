@@ -99,8 +99,7 @@ WriteMakefile1(
             runtime => {
                 requires   => { %RUN_DEPS, },
                 recommends => {
-                    'Log::Dispatch'               => 0,
-                    'Log::Any::Adapter::Dispatch' => 0,
+                    'Log::Any::Adapter::Log4cplus' => 0,
                     # to allow most recent MetaCPAN::Client to cache
                     'CHI'                    => 0,
                     'HTTP::Tiny::Mech'       => 0,
